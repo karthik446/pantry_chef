@@ -59,12 +59,3 @@ format:
 		exit 1; \
 	fi
 
-help:
-	@echo "Available commands:"
-	@echo "  make setup   - Create virtual environment and install dependencies"
-	@echo "  make run     - Run the recipe engine"
-	@echo "  make clean   - Remove virtual environment and cache files"
-	@echo "  make test    - Run tests"
-	@echo "  make lint    - Run linter"
-	@echo "  make format  - Format code"
-	@echo "  make help    - Show this help message" 

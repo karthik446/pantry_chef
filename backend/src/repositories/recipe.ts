@@ -1,6 +1,19 @@
 import { BaseRepository } from './base';
 import { Recipe, CreateRecipeDTO, UpdateRecipeDTO } from '../types';
 
+interface SearchHistoryEntry {
+  search_query: string;
+  results_count: number;
+  selected_recipe_id?: string;
+}
+
+interface RecipeView {
+  recipe_id: string;
+  source_url?: string;
+  view_duration_seconds?: number;
+  came_from_search_id?: string;
+}
+
 export class RecipeRepo extends BaseRepository {
   async findAll() {
     const { data, error } = await this.client.from('recipes').select(`
@@ -140,6 +153,86 @@ export class RecipeRepo extends BaseRepository {
         return matchingWords.length >= 2;
       })
       .map((recipe) => recipe.source_url);
+  }
+
+  async findByPantryMatch(userId: string, minMatch: number = 0) {
+    const { data, error } = await this.client
+      .from('recipe_pantry_matches')
+      .select('*')
+      .eq('user_id', userId)
+      .gte('match_percentage', minMatch)
+      .order('match_percentage', { ascending: false });
+
+    if (error) throw error;
+    return data;
+  }
+
+  async calculatePantryMatch(userId: string) {
+    const { data, error } = await this.client.rpc('calculate_pantry_match', {
+      p_user_id: userId,
+    });
+
+    if (error) throw error;
+    return data;
+  }
+
+  async addSearchHistory(userId: string, entry: SearchHistoryEntry) {
+    const { data, error } = await this.client
+      .from('user_search_history')
+      .insert({
+        user_id: userId,
+        ...entry,
+      })
+      .select()
+      .single();
+
+    if (error) throw error;
+    return data;
+  }
+
+  async addRecipeView(userId: string, view: RecipeView) {
+    const { data, error } = await this.client
+      .from('user_recipe_views')
+      .upsert({
+        user_id: userId,
+        ...view,
+        viewed_at: new Date().toISOString(),
+      })
+      .select()
+      .single();
+
+    if (error) throw error;
+    return data;
+  }
+
+  async getUnseenRecipes(userId: string, limit: number = 10) {
+    const { data, error } = await this.client.rpc('get_unseen_recipes', {
+      p_user_id: userId,
+      p_limit: limit,
+    });
+
+    if (error) throw error;
+    return data;
+  }
+
+  async getUserSearchHistory(userId: string, limit: number = 20) {
+    const { data, error } = await this.client
+      .from('user_search_history')
+      .select(
+        `
+        *,
+        selected_recipe:selected_recipe_id (
+          title,
+          source_url
+        )
+      `,
+      )
+      .eq('user_id', userId)
+      .order('created_at', { ascending: false })
+      .limit(limit);
+
+    if (error) throw error;
+    return data;
   }
 
   // Add other recipe-specific methods...

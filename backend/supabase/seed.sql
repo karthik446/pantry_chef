@@ -2,59 +2,85 @@
 
 DO $$ 
 DECLARE 
-    user_record RECORD;
-    recipe RECORD;
+    test_user_id uuid;
+    chicken_id uuid;
+    garlic_id uuid;
+    onion_id uuid;
+    salt_id uuid;
+    pepper_id uuid;
+    olive_oil_id uuid;
+    recipe_id uuid;
 BEGIN
-    -- Clean up existing data first    
-    -- Create regular user (admin already exists from migration)
-    INSERT INTO public.users (email, role) 
-    VALUES ('user@example.com', 'user');
+    -- Clean up existing data
+    TRUNCATE public.users, public.ingredients, 
+            public.recipes, public.recipe_ingredients, public.pantry_items CASCADE;
 
-    -- Rest of your seed file remains exactly the same
-    -- Create 2 recipes
-    INSERT INTO public.recipes (title, instructions, prep_time, cook_time, servings) VALUES
-    ('Simple Grilled Chicken', 
-     'Season chicken breast. Grill until cooked through. Rest for 5 minutes before serving.',
-     10, 15, 2),
-    ('Baked Salmon',
-     'Season salmon fillet. Bake at 400°F for 12-15 minutes until flaky.',
-     5, 15, 2);
+    -- Create test user
+    INSERT INTO public.users (id, email, role) 
+    VALUES (gen_random_uuid(), 'test@example.com', 'user')
+    RETURNING id INTO test_user_id;
 
-    -- Add recipe ingredients
-    WITH recipe_ids AS (
-        SELECT id, title FROM public.recipes
-    ),
-    ingredient_ids AS (
-        SELECT id, name FROM public.ingredients
-    )
-    INSERT INTO public.recipe_ingredients (recipe_id, ingredient_id, quantity, unit)
-    SELECT 
-        r.id,
-        i.id,
-        200,
-        'g'
-    FROM recipe_ids r
-    JOIN ingredient_ids i ON 
-        (r.title LIKE '%Chicken%' AND i.name = 'Chicken Breast') OR
-        (r.title LIKE '%Salmon%' AND i.name = 'Salmon Fillet');
+    -- Create basic ingredients
+    INSERT INTO public.ingredients (id, name) VALUES
+    (gen_random_uuid(), 'Chicken Breast') RETURNING id INTO chicken_id;
+    INSERT INTO public.ingredients (id, name) VALUES
+    (gen_random_uuid(), 'Garlic') RETURNING id INTO garlic_id;
+    INSERT INTO public.ingredients (id, name) VALUES
+    (gen_random_uuid(), 'Onion') RETURNING id INTO onion_id;
+    INSERT INTO public.ingredients (id, name) VALUES
+    (gen_random_uuid(), 'Salt') RETURNING id INTO salt_id;
+    INSERT INTO public.ingredients (id, name) VALUES
+    (gen_random_uuid(), 'Black Pepper') RETURNING id INTO pepper_id;
+    INSERT INTO public.ingredients (id, name) VALUES
+    (gen_random_uuid(), 'Olive Oil') RETURNING id INTO olive_oil_id;
 
-    -- Add preferences for users
-    INSERT INTO public.user_preferences (user_id, spice_level)
-    SELECT id, 3 FROM public.users;
+    -- Add ingredients to test user's pantry
+    INSERT INTO public.pantry_items (user_id, ingredient_id, quantity, unit) VALUES
+    (test_user_id, chicken_id, 500, 'g'),
+    (test_user_id, garlic_id, 5, 'cloves'),
+    (test_user_id, onion_id, 2, 'pieces'),
+    (test_user_id, salt_id, 100, 'g'),
+    (test_user_id, olive_oil_id, 500, 'ml');
 
-    -- Add one favorite recipe for each user
-    WITH user_ids AS (
-        SELECT id FROM public.users
-    ),
-    recipe_ids AS (
-        SELECT id FROM public.recipes
-    )
-    INSERT INTO public.user_favorites (user_id, recipe_id)
-    SELECT 
-        u.id,
-        r.id
-    FROM user_ids u
-    CROSS JOIN recipe_ids r
-    LIMIT 2;
+    -- Create a recipe that should match most pantry items (5/6 ingredients = 83% match)
+    INSERT INTO public.recipes (id, title, instructions, prep_time, cook_time, servings)
+    VALUES (
+        gen_random_uuid(),
+        'Garlic Chicken with Onions',
+        'Season chicken with salt and pepper. Sauté garlic and onions in olive oil. Add chicken and cook until done.',
+        15,
+        25,
+        4
+    ) RETURNING id INTO recipe_id;
+
+    -- Add ingredients to recipe
+    INSERT INTO public.recipe_ingredients (recipe_id, ingredient_id, quantity, unit) VALUES
+    (recipe_id, chicken_id, 400, 'g'),
+    (recipe_id, garlic_id, 4, 'cloves'),
+    (recipe_id, onion_id, 1, 'piece'),
+    (recipe_id, salt_id, 5, 'g'),
+    (recipe_id, olive_oil_id, 30, 'ml'),
+    (recipe_id, pepper_id, 2, 'g');
+
+    -- Create another recipe with fewer matching ingredients (3/4 ingredients = 75% match)
+    INSERT INTO public.recipes (id, title, instructions, prep_time, cook_time, servings)
+    VALUES (
+        gen_random_uuid(),
+        'Simple Garlic Chicken',
+        'Season chicken with salt. Sauté garlic in olive oil. Add chicken and cook until done.',
+        10,
+        20,
+        2
+    ) RETURNING id INTO recipe_id;
+
+    -- Add ingredients to second recipe
+    INSERT INTO public.recipe_ingredients (recipe_id, ingredient_id, quantity, unit) VALUES
+    (recipe_id, chicken_id, 300, 'g'),
+    (recipe_id, garlic_id, 2, 'cloves'),
+    (recipe_id, salt_id, 3, 'g'),
+    (recipe_id, olive_oil_id, 20, 'ml');
+
+    -- Refresh the materialized view to include our new data
+    REFRESH MATERIALIZED VIEW recipe_pantry_matches;
 
 END $$;
