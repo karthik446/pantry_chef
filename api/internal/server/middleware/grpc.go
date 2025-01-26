@@ -11,12 +11,11 @@ import (
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/peer"
 
-	logger "github.com/karthik446/pantry_chef/api/internal/platform/logger"
 	metrics "github.com/karthik446/pantry_chef/api/internal/platform/metrics"
 )
 
 // UnaryServerInterceptor logs requests for unary RPCs
-func UnaryServerInterceptor() grpc.UnaryServerInterceptor {
+func UnaryServerInterceptor(logger *zap.SugaredLogger) grpc.UnaryServerInterceptor {
 	return func(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (interface{}, error) {
 		start := time.Now()
 		requestID := uuid.New().String()
@@ -54,7 +53,7 @@ func UnaryServerInterceptor() grpc.UnaryServerInterceptor {
 }
 
 // RecoveryInterceptor handles panics in gRPC handlers
-func RecoveryInterceptor() grpc.UnaryServerInterceptor {
+func RecoveryInterceptor(logger *zap.SugaredLogger) grpc.UnaryServerInterceptor {
 	return func(
 		ctx context.Context,
 		req interface{},

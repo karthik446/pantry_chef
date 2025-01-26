@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"net"
 	"net/http"
 	"os"
 	"os/signal"
@@ -12,6 +13,7 @@ import (
 
 	"github.com/karthik446/pantry_chef/api/internal/platform/config"
 	"github.com/karthik446/pantry_chef/api/internal/platform/db"
+	grpcServer "github.com/karthik446/pantry_chef/api/internal/server/grpc"
 	httpServer "github.com/karthik446/pantry_chef/api/internal/server/http"
 	"github.com/karthik446/pantry_chef/api/internal/store"
 	"go.uber.org/zap"
@@ -50,7 +52,7 @@ func main() {
 	// Initialize store
 	store := store.NewStorage(db)
 
-	// Initialize application
+	// Initialize HTTP application
 	app, err := httpServer.NewApplication(cfg, store, sugar)
 	if err != nil {
 		logger.Fatal("Failed to initialize application",
@@ -61,24 +63,45 @@ func main() {
 
 	// Setup HTTP server
 	srv := &http.Server{
-		Addr:         fmt.Sprintf(":%s", cfg.Addr),
+		Addr:         fmt.Sprintf(":%s", cfg.HTTP.Port),
 		Handler:      httpHandler,
 		IdleTimeout:  time.Minute,
 		ReadTimeout:  10 * time.Second,
 		WriteTimeout: 30 * time.Second,
 	}
 
+	// Initialize gRPC server
+	grpcSrv := grpcServer.NewGRPCServer(sugar)
+	grpcListener, err := net.Listen("tcp", fmt.Sprintf(":%s", cfg.GRPC.Port))
+	if err != nil {
+		logger.Fatal("Failed to create gRPC listener",
+			zap.Error(err),
+		)
+	}
+
 	// Setup signal handling for graceful shutdown
 	shutdown := make(chan os.Signal, 1)
 	signal.Notify(shutdown, syscall.SIGINT, syscall.SIGTERM)
 
-	// Start server
+	// Start HTTP server
 	go func() {
-		logger.Info("Starting server",
-			zap.String("addr", cfg.Addr),
+		logger.Info("Starting HTTP server",
+			zap.String("addr", cfg.HTTP.Port),
 		)
 		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			logger.Fatal("Server failed",
+			logger.Fatal("HTTP server failed",
+				zap.Error(err),
+			)
+		}
+	}()
+
+	// Start gRPC server
+	go func() {
+		logger.Info("Starting gRPC server",
+			zap.String("addr", cfg.GRPC.Port),
+		)
+		if err := grpcSrv.Serve(grpcListener); err != nil {
+			logger.Fatal("gRPC server failed",
 				zap.Error(err),
 			)
 		}
@@ -86,12 +109,16 @@ func main() {
 
 	// Wait for interrupt signal
 	<-shutdown
-	logger.Info("Shutting down server...")
+	logger.Info("Shutting down servers...")
 
 	// Graceful shutdown
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
+	// Stop gRPC server
+	grpcSrv.GracefulStop()
+
+	// Stop HTTP server
 	if err := srv.Shutdown(ctx); err != nil {
 		logger.Error("Server shutdown error",
 			zap.Error(err),
