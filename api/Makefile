@@ -1,7 +1,7 @@
 include .env
 export
 
-.PHONY: proto server clean migrate-up migrate-down
+.PHONY: proto server clean migrate-up migrate-down test test-integration test-all
 
 # Generate proto files
 proto:
@@ -34,3 +34,12 @@ migrate-up:
 
 migrate-down:
 	migrate -path internal/platform/db/migrations -database ${DB_URL} down 
+
+
+test:
+	go test -v ./internal/...
+
+test-integration:
+	go test -v ./tests/integration/...
+	
+test-all: test test-integration

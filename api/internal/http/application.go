@@ -1,24 +1,24 @@
-package server
+package http_server
 
 import (
 	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
+	"github.com/karthik446/pantry_chef/api/internal/http/handlers/auth"
+	"github.com/karthik446/pantry_chef/api/internal/http/handlers/ingredients"
 	"github.com/karthik446/pantry_chef/api/internal/platform/config"
 	"github.com/karthik446/pantry_chef/api/internal/platform/token"
-	"github.com/karthik446/pantry_chef/api/internal/server/service"
 	"github.com/karthik446/pantry_chef/api/internal/store"
 	"go.uber.org/zap"
 )
 
 type application struct {
-	config      *config.Config
-	store       *store.Storage
-	logger      *zap.SugaredLogger
-	tokenGen    token.Generator
-	authMid     *AuthMiddleware
-	authService *service.AuthService
+	config   *config.Config
+	store    *store.Storage
+	logger   *zap.SugaredLogger
+	tokenGen token.Generator
+	authMid  *AuthMiddleware
 }
 
 func NewApplication(cfg *config.Config, store *store.Storage, logger *zap.SugaredLogger) (*application, error) {
@@ -28,15 +28,12 @@ func NewApplication(cfg *config.Config, store *store.Storage, logger *zap.Sugare
 		SigningKey:           []byte(cfg.JWT.Secret),
 	})
 
-	authService := service.NewAuthService(tokenGen, store.Users, store.Tokens)
-
 	return &application{
-		config:      cfg,
-		store:       store,
-		logger:      logger,
-		tokenGen:    tokenGen,
-		authMid:     NewAuthMiddleware(tokenGen),
-		authService: authService,
+		config:   cfg,
+		store:    store,
+		logger:   logger,
+		tokenGen: tokenGen,
+		authMid:  NewAuthMiddleware(tokenGen),
 	}, nil
 }
 
@@ -49,6 +46,10 @@ func (app *application) Mount() *chi.Mux {
 	r.Use(middleware.Logger)
 	r.Use(middleware.Recoverer)
 	r.Use(middleware.Timeout(60 * time.Second))
+	authService := auth.NewAuthService(app.tokenGen, app.store.Users, app.store.Tokens)
+
+	authHandler := auth.NewAuthHandler(app.logger, authService)
+	ingredientHandler := ingredients.NewIngredientHandler(app.logger, app.store.Ingredients)
 
 	r.Route("/v1", func(r chi.Router) {
 		// Public routes
@@ -56,8 +57,8 @@ func (app *application) Mount() *chi.Mux {
 		r.Get("/ready", app.readinessCheckHandler)
 
 		// Auth routes
-		r.Post("/auth/login", app.loginHandler)
-		r.Post("/auth/refresh", app.refreshTokenHandler)
+		r.Post("/auth/login", authHandler.Login)
+		r.Post("/auth/refresh", authHandler.Refresh)
 
 		// Protected routes
 		r.Group(func(r chi.Router) {
@@ -66,20 +67,20 @@ func (app *application) Mount() *chi.Mux {
 
 			// Ingredients routes
 			r.Route("/ingredients", func(r chi.Router) {
-				r.Get("/", app.listIngredientsHandler)
+				r.Get("/", ingredientHandler.List)
 
 				// Admin only routes
 				r.Group(func(r chi.Router) {
 					r.Use(app.authMid.RequireRole("admin"))
-					r.Post("/", app.createIngredientHandler)
-					r.Put("/{id}", app.updateIngredientHandler)
-					r.Delete("/{id}", app.deleteIngredientHandler)
+					r.Post("/", ingredientHandler.Create)
+					r.Put("/{id}", ingredientHandler.Update)
+					r.Delete("/{id}", ingredientHandler.Delete)
 				})
 			})
 
 			// Logout (requires auth)
-			r.Post("/auth/logout", app.logoutHandler)
-			r.Post("/auth/logout/all", app.logoutAllHandler)
+			r.Post("/auth/logout", authHandler.Logout)
+			r.Post("/auth/logout/all", authHandler.LogoutAll)
 		})
 	})
 

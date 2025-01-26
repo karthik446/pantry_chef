@@ -11,10 +11,10 @@ import (
 	"syscall"
 	"time"
 
+	grpcServer "github.com/karthik446/pantry_chef/api/internal/grpc"
+	httpServer "github.com/karthik446/pantry_chef/api/internal/http"
 	"github.com/karthik446/pantry_chef/api/internal/platform/config"
 	"github.com/karthik446/pantry_chef/api/internal/platform/db"
-	grpcServer "github.com/karthik446/pantry_chef/api/internal/server/grpc"
-	httpServer "github.com/karthik446/pantry_chef/api/internal/server/http"
 	"github.com/karthik446/pantry_chef/api/internal/store"
 	"go.uber.org/zap"
 )

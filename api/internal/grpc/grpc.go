@@ -1,9 +1,8 @@
-package server
+package grpc_server
 
 import (
 	"context"
 
-	"github.com/karthik446/pantry_chef/api/internal/server/middleware"
 	pb "github.com/karthik446/pantry_chef/api/proto"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
@@ -16,8 +15,8 @@ type healthServer struct {
 func NewGRPCServer(logger *zap.SugaredLogger) *grpc.Server {
 	server := grpc.NewServer(
 		grpc.ChainUnaryInterceptor(
-			middleware.UnaryServerInterceptor(logger),
-			middleware.RecoveryInterceptor(logger),
+			UnaryServerInterceptor(logger),
+			RecoveryInterceptor(logger),
 		),
 	)
 	pb.RegisterHealthServiceServer(server, &healthServer{})
