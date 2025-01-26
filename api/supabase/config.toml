@@ -31,7 +31,7 @@ shadow_port = 54320
 major_version = 15
 
 [db.pooler]
-enabled = true
+enabled = false
 # Port to use for the local connection pooler.
 port = 54329
 # Specifies when a server connection can be reused by other clients.
@@ -46,8 +46,8 @@ max_client_conn = 100
 # If enabled, seeds the database after migrations during a db reset.
 enabled = true
 # Specifies an ordered list of seed files to load during db reset.
-# Supports glob patterns relative to supabase directory: './seeds/*.sql'
-sql_paths = ['./seed.sql']
+# Supports glob patterns relative to supabase directory: "./seeds/*.sql"
+sql_paths = ["./seed.sql"]
 
 [realtime]
 enabled = true
@@ -83,8 +83,8 @@ enabled = true
 file_size_limit = "50MiB"
 
 # Image transformation API is available to Supabase Pro plan.
-[storage.image_transformation]
-enabled = true
+# [storage.image_transformation]
+# enabled = true
 
 # Uncomment to configure local storage buckets
 # [storage.buckets.images]
@@ -114,10 +114,10 @@ enable_anonymous_sign_ins = false
 # Allow/disallow testing manual linking of accounts
 enable_manual_linking = false
 # Passwords shorter than this value will be rejected as weak. Minimum 6, recommended 8 or more.
-minimum_password_length = 12
+minimum_password_length = 6
 # Passwords that do not meet the following requirements will be rejected as weak. Supported values
 # are: `letters_digits`, `lower_upper_letters_digits`, `lower_upper_letters_digits_symbols`
-password_requirements = "lower_upper_letters_digits_symbols"
+password_requirements = ""
 
 [auth.email]
 # Allow/disallow new user signups via email to your project.
@@ -126,9 +126,9 @@ enable_signup = true
 # addresses. If disabled, only the new email is required to confirm.
 double_confirm_changes = true
 # If enabled, users need to confirm their email address before signing in.
-enable_confirmations = true
+enable_confirmations = false
 # If enabled, users will need to reauthenticate or have logged in recently to change their password.
-secure_password_change = true
+secure_password_change = false
 # Controls the minimum amount of time that must pass before sending another signup confirmation or password reset email.
 max_frequency = "1s"
 # Number of characters used in the email OTP.

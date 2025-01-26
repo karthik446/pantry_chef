@@ -1,0 +1,9 @@
+{"level":"info","timestamp":"2025-01-23T20:50:14.368-0700","msg":"gRPC Request","request_id":"0c2552e2-c236-4d19-978d-973d0ea9a72f","method":"/api.HealthService/Check","duration":0.000013583,"peer_address":"[::1]:52378"}
+{"level":"info","timestamp":"2025-01-23T20:51:28.535-0700","msg":"gRPC Request","request_id":"0c880a18-258f-4747-a40a-8d97c9fe1e83","method":"/api.HealthService/Check","duration":0.000011166,"peer_address":"[::1]:52402"}
+{"level":"INFO","timestamp":"2025-01-23T20:52:17-07:00","msg":"gRPC Request","request_id":"1321e5f2-786f-4eb8-b2ec-c4bba41b8fe2","method":"/api.HealthService/Check","duration":"10.5µs","peer_address":"[::1]:52419"}
+{"level":"INFO","timestamp":"2025-01-23T20:59:03-07:00","msg":"gRPC Request","request_id":"f3f48ac2-9fef-40da-a2d6-d98ef211fd5d","method":"/api.HealthService/Check","duration":"15.458µs","peer_address":"[::1]:52709"}
+{"level":"INFO","timestamp":"2025-01-23T21:00:06-07:00","msg":"gRPC Request","request_id":"76aad6fc-deae-4db6-beca-9d77cdb153c8","method":"/api.HealthService/Check","duration":"17.584µs","peer_address":"[::1]:52737"}
+{"level":"INFO","timestamp":"2025-01-23T21:12:37-07:00","msg":"gRPC Request","request_id":"d0b28266-5a8a-4269-9770-8db8b18177d1","method":"/api.HealthService/Check","duration":"14.458µs","peer_address":"[::1]:52980"}
+{"level":"INFO","timestamp":"2025-01-25T20:18:13-07:00","msg":"Starting gRPC server","addr":":9090"}
+{"level":"INFO","timestamp":"2025-01-25T20:18:13-07:00","msg":"Starting HTTP server","addr":"8000"}
+{"level":"INFO","timestamp":"2025-01-25T20:18:21-07:00","msg":"Shutting down servers..."}

@@ -30,16 +30,9 @@ create table public.user_preferences (
   unique(user_id)
 );
 
-create table public.categories (
-  id uuid primary key default uuid_generate_v4(),
-  name text unique not null,
-  created_at timestamptz default now()
-);
-
 create table public.ingredients (
   id uuid primary key default uuid_generate_v4(),
   name text not null,
-  category_id uuid references categories(id) on delete set null,
   created_at timestamptz default now()
 );
 
