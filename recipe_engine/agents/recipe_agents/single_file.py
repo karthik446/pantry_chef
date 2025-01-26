@@ -60,46 +60,6 @@ def find_print_link(soup) -> Optional[BeautifulSoup]:
     return print_link
 
 
-def initialize_auth() -> bool:
-    """Initialize authentication by getting initial access and refresh tokens.
-
-    Returns:
-        bool: True if authentication was successful, False otherwise.
-    """
-    auth_data = {"email": "skarthikc.dev@gmail.com", "password": "cUcsuv-majtyc-9gejfa"}
-
-    try:
-        response = requests.post(f"{BASE_URL}/auth/login", json=auth_data)
-        response.raise_for_status()
-        tokens = response.json()
-        AUTH_TOKENS.update(tokens)
-        print("Authentication successful!")
-        return True
-    except Exception as e:
-        print(f"Authentication failed: {str(e)}")
-        return False
-
-
-@tool
-def get_auth_tokens() -> dict:
-    """Gets authentication tokens from the login API.
-
-    Returns:
-        dict: A dictionary containing access and refresh tokens or error information.
-    """
-    auth_data = {"email": "skarthikc.dev@gmail.com", "password": "cUcsuv-majtyc-9gejfa"}
-
-    try:
-        response = requests.post(f"{BASE_URL}/auth/login", json=auth_data)
-        response.raise_for_status()
-        tokens = response.json()
-        AUTH_TOKENS.update(tokens)
-        return tokens
-    except Exception as e:
-        print(f"Authentication error: {str(e)}")
-        return {"error": str(e)}
-
-
 @tool
 def refresh_auth_token() -> dict:
     """Refreshes the access token using the refresh token.

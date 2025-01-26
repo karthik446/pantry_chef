@@ -38,7 +38,7 @@ create-admin: check-jq
 	@auth_response=`curl -s -X POST '${SUPABASE_URL}/auth/v1/signup' \
 		-H "apikey: ${SUPABASE_API_KEY}" \
 		-H "Content-Type: application/json" \
-		-d '{"email": "skarthikc.dev@gmail.com", "password": "cUcsuv-majtyc-9gejfa", "data": {"role": "admin"}}'` && \
+		-d '{"email": "${ADMIN_EMAIL}", "password": "${ADMIN_PASSWORD}", "data": {"role": "admin"}}'` && \
 	echo "Auth user created with ID: " && echo $$auth_response | jq -r '.id' && \
 	echo "\n✅ Admin user created successfully"
 

@@ -1,5 +1,6 @@
 import requests
 from typing import Dict, Optional
+import os
 
 
 class AuthService:
@@ -22,8 +23,8 @@ class AuthService:
             bool: True if authentication was successful, False otherwise.
         """
         auth_data = {
-            "email": "skarthikc.dev@gmail.com",
-            "password": "cUcsuv-majtyc-9gejfa",
+            "email": os.getenv("API_EMAIL"),
+            "password": os.getenv("API_PASSWORD"),
         }
 
         try:
