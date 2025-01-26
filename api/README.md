@@ -6,6 +6,7 @@ Go implementation of the Pantry Chef backend API. This service provides both HTT
 
 - [Architecture Overview](docs/ARCHITECTURE.md)
 - [Project Structure](docs/PROJECT_STRUCTURE.md)
+- [Technical Decisions DB](docs/TECHNICAL_DECISIONS_DB.md)
 
 ## Structure
 

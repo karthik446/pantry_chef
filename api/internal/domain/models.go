@@ -4,6 +4,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"golang.org/x/crypto/bcrypt"
 )
 
 type Ingredient struct {
@@ -17,12 +18,26 @@ type CreateIngredientDTO struct {
 }
 
 type User struct {
-	ID              uuid.UUID              `json:"id"`
-	Email           string                 `json:"email"`
-	CreatedAt       time.Time              `json:"created_at"`
-	IsActive        bool                   `json:"is_active"`
-	RawUserMetaData map[string]interface{} `json:"raw_user_meta_data,omitempty"`
-	Role            string                 `json:"role"`
+	ID           uuid.UUID `json:"id"`
+	UserNumber   string    `json:"user_number"`
+	PasswordHash string    `json:"-"`
+	CreatedAt    time.Time `json:"created_at"`
+	IsActive     bool      `json:"is_active"`
+	Role         string    `json:"role"`
+}
+
+func (u *User) VerifyPassword(password string) bool {
+	err := bcrypt.CompareHashAndPassword([]byte(u.PasswordHash), []byte(password))
+	return err == nil
+}
+
+// Helper function to hash passwords
+func HashPassword(password string) (string, error) {
+	hashedBytes, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
+	if err != nil {
+		return "", err
+	}
+	return string(hashedBytes), nil
 }
 
 type UserPreferences struct {

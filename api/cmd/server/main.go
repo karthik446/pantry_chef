@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"log"
-	"net"
 	"net/http"
 	"os"
 	"os/signal"
@@ -12,12 +11,10 @@ import (
 	"time"
 
 	"github.com/karthik446/pantry_chef/api/internal/platform/config"
-	"github.com/karthik446/pantry_chef/api/internal/platform/db/postgres"
-	server "github.com/karthik446/pantry_chef/api/internal/server/grpc"
+	"github.com/karthik446/pantry_chef/api/internal/platform/db"
 	httpServer "github.com/karthik446/pantry_chef/api/internal/server/http"
 	"github.com/karthik446/pantry_chef/api/internal/store"
 	"go.uber.org/zap"
-	"google.golang.org/grpc/reflection"
 )
 
 func main() {
@@ -38,8 +35,8 @@ func main() {
 	}
 
 	// Initialize database
-	db, err := postgres.New(postgres.Config{
-		URL:          cfg.DB.Addr,
+	db, err := db.New(db.Config{
+		URL:          cfg.DB.URL,
 		MaxOpenConns: int32(cfg.DB.MaxOpenConns),
 		MaxIdleTime:  15 * time.Minute,
 	})
@@ -54,11 +51,16 @@ func main() {
 	store := store.NewStorage(db)
 
 	// Initialize application
-	app := httpServer.NewApplication(store, sugar)
+	app, err := httpServer.NewApplication(cfg, store, sugar)
+	if err != nil {
+		logger.Fatal("Failed to initialize application",
+			zap.Error(err),
+		)
+	}
 	httpHandler := app.Mount()
 
 	// Setup HTTP server
-	httpServer := &http.Server{
+	srv := &http.Server{
 		Addr:         fmt.Sprintf(":%s", cfg.Addr),
 		Handler:      httpHandler,
 		IdleTimeout:  time.Minute,
@@ -66,57 +68,32 @@ func main() {
 		WriteTimeout: 30 * time.Second,
 	}
 
-	// Setup gRPC server
-	grpcServer := server.NewGRPCServer()
-	reflection.Register(grpcServer)
+	// Setup signal handling for graceful shutdown
+	shutdown := make(chan os.Signal, 1)
+	signal.Notify(shutdown, syscall.SIGINT, syscall.SIGTERM)
 
-	// Setup gRPC listener
-	grpcListener, err := net.Listen("tcp", ":9090")
-	if err != nil {
-		logger.Fatal("Failed to listen for gRPC",
-			zap.Error(err),
-		)
-	}
-
-	// Setup signal handling
-	quit := make(chan os.Signal, 1)
-	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
-
-	// Start servers
+	// Start server
 	go func() {
-		logger.Info("Starting HTTP server",
+		logger.Info("Starting server",
 			zap.String("addr", cfg.Addr),
 		)
-		if err := httpServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			logger.Fatal("HTTP server failed",
-				zap.Error(err),
-			)
-		}
-	}()
-
-	go func() {
-		logger.Info("Starting gRPC server",
-			zap.String("addr", ":9090"),
-		)
-		if err := grpcServer.Serve(grpcListener); err != nil {
-			logger.Fatal("gRPC server failed",
+		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			logger.Fatal("Server failed",
 				zap.Error(err),
 			)
 		}
 	}()
 
 	// Wait for interrupt signal
-	<-quit
-	logger.Info("Shutting down servers...")
+	<-shutdown
+	logger.Info("Shutting down server...")
 
 	// Graceful shutdown
-	grpcServer.GracefulStop()
-
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
-	if err := httpServer.Shutdown(ctx); err != nil {
-		logger.Error("HTTP server shutdown error",
+	if err := srv.Shutdown(ctx); err != nil {
+		logger.Error("Server shutdown error",
 			zap.Error(err),
 		)
 	}

@@ -1,7 +1,7 @@
 include .env
 export
 
-.PHONY: proto server clean
+.PHONY: proto server clean migrate-up migrate-down
 
 # Generate proto files
 proto:
@@ -29,21 +29,8 @@ deps:
 # Default target
 all: proto deps build 
 
+migrate-up:
+	migrate -path internal/platform/db/migrations -database ${DB_URL} up
 
-check-jq:
-	@which jq > /dev/null || (echo "Error: jq is required but not installed. Install with 'brew install jq'" && exit 1)
-
-create-admin: check-jq
-	@echo "Creating admin user..."
-	@auth_response=`curl -s -X POST '${SUPABASE_URL}/auth/v1/signup' \
-		-H "apikey: ${SUPABASE_API_KEY}" \
-		-H "Content-Type: application/json" \
-		-d '{"email": "${ADMIN_EMAIL}", "password": "${ADMIN_PASSWORD}", "data": {"role": "admin"}}'` && \
-	echo "Auth user created with ID: " && echo $$auth_response | jq -r '.id' && \
-	echo "\n✅ Admin user created successfully"
-
-
-db-reset:
-	supabase db reset --db-url="postgresql://postgres:jicqy6-pajqij-micrUg@db.rsztmhzcvbcluhwffzyu.supabase.co:5432/postgres"
-
-remote-db-reset: db-reset create-admin 
+migrate-down:
+	migrate -path internal/platform/db/migrations -database ${DB_URL} down 

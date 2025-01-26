@@ -5,27 +5,32 @@ import (
 )
 
 type Config struct {
-	Addr    string
-	DB      DBConfig
+	Addr string
+	DB   struct {
+		URL          string
+		MaxOpenConns int
+	}
+	JWT struct {
+		Secret string
+	}
 	Env     string
 	Version string
-}
-
-type DBConfig struct {
-	Addr         string
-	MaxOpenConns int
-	MaxIdleConns int
-	MaxIdleTime  string
 }
 
 func Load() (*Config, error) {
 	cfg := Config{
 		Addr: env.GetString("PORT", "8000"),
-		DB: DBConfig{
-			Addr:         env.GetString("SUPABASE_DB_URL", ""),
+		DB: struct {
+			URL          string
+			MaxOpenConns int
+		}{
+			URL:          env.GetString("DB_URL", ""),
 			MaxOpenConns: env.GetInt("DB_MAX_OPEN_CONNS", 25),
-			MaxIdleConns: env.GetInt("DB_MAX_IDLE_CONNS", 20),
-			MaxIdleTime:  env.GetString("DB_MAX_IDLE_TIME", "15m"),
+		},
+		JWT: struct {
+			Secret string
+		}{
+			Secret: env.GetString("JWT_SECRET", "your-secret-key"),
 		},
 		Env:     env.GetString("NODE_ENV", "development"),
 		Version: env.GetString("VERSION", "1.0.0"),

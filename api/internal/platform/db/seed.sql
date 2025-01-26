@@ -1,5 +1,3 @@
--- supabase/seed.sql
-
 DO $$ 
 DECLARE 
     test_user_id uuid;
@@ -82,5 +80,15 @@ BEGIN
 
     -- Refresh the materialized view to include our new data
     REFRESH MATERIALIZED VIEW recipe_pantry_matches;
+
+    -- Password is 'password123' hashed with bcrypt
+    INSERT INTO users (id, user_number, password_hash, role, is_active) 
+    VALUES (
+        'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11',  -- fixed UUID for testing
+        '1234567890',                             -- user number
+        '$2a$10$Xc1CZxD.mh6jWCy2ABHdh.7QHChxd7c2R8YhWfFpK9APyaWqj5bqK',  -- 'password123'
+        'admin',                                  -- role
+        true                                      -- is_active
+    );
 
 END $$;
