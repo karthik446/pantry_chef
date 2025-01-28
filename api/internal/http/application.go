@@ -8,6 +8,7 @@ import (
 	"github.com/karthik446/pantry_chef/api/internal/http/handlers/auth"
 	"github.com/karthik446/pantry_chef/api/internal/http/handlers/health"
 	"github.com/karthik446/pantry_chef/api/internal/http/handlers/ingredients"
+	"github.com/karthik446/pantry_chef/api/internal/http/handlers/metrics"
 	"github.com/karthik446/pantry_chef/api/internal/http/middlewares"
 	"github.com/karthik446/pantry_chef/api/internal/platform/config"
 	"github.com/karthik446/pantry_chef/api/internal/platform/token"
@@ -48,11 +49,18 @@ func (app *application) Mount() *chi.Mux {
 	r.Use(middleware.Logger)
 	r.Use(middleware.Recoverer)
 	r.Use(middleware.Timeout(60 * time.Second))
+
+	metricsService := metrics.NewMetricsService(app.store.Metrics)
+	// Add metrics middleware globally
+	metricsMid := middlewares.NewMetricsMiddleware(metricsService, app.logger)
+	r.Use(metricsMid.Metrics)
+
 	authService := auth.NewAuthService(app.tokenGen, app.store.Users, app.store.Tokens)
 
 	authHandler := auth.NewAuthHandler(app.logger, authService)
 	ingredientHandler := ingredients.NewIngredientHandler(app.logger, app.store.Ingredients)
 	healthHandler := health.NewHealthHandler(app.logger)
+	metricsHandler := metrics.NewMetricsHandler(metricsService, app.logger)
 	r.Route("/api/v1", func(r chi.Router) {
 		// Public routes
 		r.Get("/health", healthHandler.HealthCheckHandler)
@@ -83,6 +91,15 @@ func (app *application) Mount() *chi.Mux {
 			// Logout (requires auth)
 			r.Post("/auth/logout", authHandler.Logout)
 			r.Post("/auth/logout/all", authHandler.LogoutAll)
+		})
+
+		// Admin routes
+		r.Route("/admin", func(r chi.Router) {
+			// First authenticate the user
+			r.Use(app.authMid.Authenticate)
+			// Then check if they're an admin
+			r.Use(app.authMid.RequireRole("admin"))
+			r.Get("/metrics", metricsHandler.GetMetrics)
 		})
 	})
 

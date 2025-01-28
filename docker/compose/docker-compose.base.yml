@@ -22,16 +22,37 @@ services:
     build:
       context: ../../api
       dockerfile: Dockerfile
+    container_name: pantry_chef_api
     platform: linux/arm64
-    depends_on:
-      postgres:
-        condition: service_healthy
     environment:
       DB_URL: postgresql://postgres:postgres@postgres:5432/pantry_chef?sslmode=disable
       PORT: 8000
       NODE_ENV: development
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4317
     ports:
       - "8000:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      otel-collector:
+        condition: service_started
+
+  otel-collector:
+    image: otel/opentelemetry-collector:latest
+    container_name: pantry_chef_otel
+    command: ["--config=/etc/otel-collector-config.yaml"]
+    volumes:
+      - ./otel-collector-config.yaml:/etc/otel-collector-config.yaml
+    ports:
+      - "4317:4317"
+      - "4318:4318"
+      - "8889:8889"
+    networks:
+      - pantry_chef_network
+
+networks:
+  pantry_chef_network:
+    driver: bridge
 
 volumes:
   postgres_data:

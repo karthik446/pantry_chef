@@ -37,10 +37,17 @@ type IngredientStoreInterface interface {
 	Delete(ctx context.Context, id uuid.UUID) error
 }
 
+type MetricsStoreInterface interface {
+	RecordHTTPMetric(ctx context.Context, requestID, path, method string, status int, size int64, duration time.Duration) error
+	RecordAuthMetric(ctx context.Context, metric AuthMetrics) error
+	GetMetrics(ctx context.Context, query MetricsQuery) (*MetricsResponse, error)
+}
+
 type Storage struct {
 	Ingredients IngredientStoreInterface
 	Tokens      TokenStoreInterface
 	Users       UserStoreInterface
+	Metrics     MetricsStoreInterface
 }
 
 func NewStorage(db *pgxpool.Pool) *Storage {
@@ -48,5 +55,6 @@ func NewStorage(db *pgxpool.Pool) *Storage {
 		Ingredients: &IngredientsStore{db: db},
 		Tokens:      &TokenStore{db: db},
 		Users:       &UserStore{db: db},
+		Metrics:     &MetricsStore{db: db},
 	}
 }

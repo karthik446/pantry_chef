@@ -50,14 +50,6 @@ CREATE TABLE public.user_preferences (
   UNIQUE(user_id)
 );
 
-
-
-
-
-
--- Add indexes for materialized view calculations
-
-
 -- Add new table for refresh tokens after users table
 CREATE TABLE public.refresh_tokens (
   id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
@@ -139,7 +131,41 @@ CREATE TABLE public.user_recipe_interactions (
   created_at timestamptz DEFAULT now()
 );
 
+CREATE TABLE public.http_metrics (
+    id uuid NOT NULL DEFAULT uuid_generate_v4(),
+    request_id TEXT NOT NULL,
+    path TEXT NOT NULL,
+    method TEXT NOT NULL,
+    requests_total BIGINT DEFAULT 1,
+    response_status JSONB DEFAULT '{}',
+    response_size BIGINT DEFAULT 0,
+    duration DOUBLE PRECISION DEFAULT 0,
+    date DATE NOT NULL DEFAULT CURRENT_DATE,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    PRIMARY KEY (id, date)  -- Include date in primary key for partitioning
+) PARTITION BY RANGE (date);
 
+-- Create default partition for future dates
+CREATE TABLE http_metrics_default PARTITION OF http_metrics DEFAULT;
+
+-- Create initial partition for current month
+CREATE TABLE http_metrics_y2025m01 PARTITION OF http_metrics
+    FOR VALUES FROM ('2025-01-01') TO ('2025-02-01');
+
+CREATE TABLE public.auth_metrics (
+    attempts_total BIGINT DEFAULT 0,
+    success_total BIGINT DEFAULT 0,
+    failures_total BIGINT DEFAULT 0,
+    date DATE NOT NULL DEFAULT CURRENT_DATE PRIMARY KEY,
+    last_updated TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+) PARTITION BY RANGE (date);
+
+-- Create default partition for future dates
+CREATE TABLE auth_metrics_default PARTITION OF auth_metrics DEFAULT;
+
+-- Create initial partition for current month
+CREATE TABLE auth_metrics_y2025m01 PARTITION OF auth_metrics
+    FOR VALUES FROM ('2025-01-01') TO ('2025-02-01');
 
 -- Create materialized view for recipe-pantry matching
 CREATE MATERIALIZED VIEW recipe_pantry_matches AS
@@ -166,6 +192,14 @@ JOIN recipe_ingredients ri ON ri.recipe_id = r.id
 JOIN recipe_ingredient_counts ric ON ric.recipe_id = r.id
 LEFT JOIN pantry_items pi ON pi.ingredient_id = ri.ingredient_id AND pi.user_id = u.id
 GROUP BY r.id, r.title, u.id, ric.total_ingredients;
+
+-- Add indexes on commonly queried columns
+CREATE INDEX idx_http_metrics_date ON http_metrics(date);
+CREATE INDEX idx_http_metrics_request_id ON http_metrics(request_id);
+CREATE INDEX idx_http_metrics_path_method ON http_metrics(path, method);
+
+-- Create indexes on the parent table (they'll be inherited by partitions)
+CREATE INDEX idx_auth_metrics_date ON auth_metrics(date);
 
 -- Create indexes
 CREATE UNIQUE INDEX idx_recipe_pantry_matches_unique 

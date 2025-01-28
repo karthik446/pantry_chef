@@ -42,7 +42,12 @@ func (m *AuthMiddleware) Authenticate(next http.Handler) http.Handler {
 func (m *AuthMiddleware) RequireRole(role string) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			userRole := r.Context().Value("role").(string)
+			userRole, ok := r.Context().Value("role").(string)
+			if !ok || userRole == "" {
+				http.Error(w, "Unauthorized", http.StatusUnauthorized)
+				return
+			}
+
 			if userRole != role {
 				http.Error(w, "Forbidden", http.StatusForbidden)
 				return

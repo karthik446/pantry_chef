@@ -5,13 +5,14 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/metric"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/peer"
-
-	metrics "github.com/karthik446/pantry_chef/api/internal/platform/metrics"
 )
 
 // UnaryServerInterceptor logs requests for unary RPCs
@@ -26,18 +27,34 @@ func UnaryServerInterceptor(logger *zap.SugaredLogger) grpc.UnaryServerIntercept
 		// Get peer info
 		peer, _ := peer.FromContext(ctx)
 
+		// Get meter
+		meter := otel.GetMeterProvider().Meter("grpc-server")
+
+		// Create metrics
+		requestCounter, _ := meter.Int64Counter("grpc.requests.total")
+		errorCounter, _ := meter.Int64Counter("grpc.errors.total")
+		latencyHistogram, _ := meter.Float64Histogram("grpc.request.duration")
+
 		// Process request
 		resp, err := handler(ctx, req)
 
-		duration := time.Since(start)
-		status := "success"
-		if err != nil {
-			status = "error"
-			metrics.GRPCErrorsTotal.Inc()
-		}
-
 		// Record metrics
-		metrics.GRPCRequestsTotal.WithLabelValues(status).Inc()
+		duration := time.Since(start)
+		requestCounter.Add(ctx, 1, metric.WithAttributes(
+			attribute.String("method", info.FullMethod),
+			attribute.String("peer", peer.Addr.String()),
+		))
+
+		latencyHistogram.Record(ctx, duration.Seconds(), metric.WithAttributes(
+			attribute.String("method", info.FullMethod),
+		))
+
+		if err != nil {
+			errorCounter.Add(ctx, 1, metric.WithAttributes(
+				attribute.String("method", info.FullMethod),
+				attribute.String("error", err.Error()),
+			))
+		}
 
 		// Log request details
 		logger.Info("gRPC Request",
