@@ -6,7 +6,9 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/karthik446/pantry_chef/api/internal/http/handlers/auth"
+	"github.com/karthik446/pantry_chef/api/internal/http/handlers/health"
 	"github.com/karthik446/pantry_chef/api/internal/http/handlers/ingredients"
+	"github.com/karthik446/pantry_chef/api/internal/http/middlewares"
 	"github.com/karthik446/pantry_chef/api/internal/platform/config"
 	"github.com/karthik446/pantry_chef/api/internal/platform/token"
 	"github.com/karthik446/pantry_chef/api/internal/store"
@@ -18,7 +20,7 @@ type application struct {
 	store    *store.Storage
 	logger   *zap.SugaredLogger
 	tokenGen token.Generator
-	authMid  *AuthMiddleware
+	authMid  *middlewares.AuthMiddleware
 }
 
 func NewApplication(cfg *config.Config, store *store.Storage, logger *zap.SugaredLogger) (*application, error) {
@@ -33,7 +35,7 @@ func NewApplication(cfg *config.Config, store *store.Storage, logger *zap.Sugare
 		store:    store,
 		logger:   logger,
 		tokenGen: tokenGen,
-		authMid:  NewAuthMiddleware(tokenGen),
+		authMid:  middlewares.NewAuthMiddleware(tokenGen),
 	}, nil
 }
 
@@ -50,11 +52,11 @@ func (app *application) Mount() *chi.Mux {
 
 	authHandler := auth.NewAuthHandler(app.logger, authService)
 	ingredientHandler := ingredients.NewIngredientHandler(app.logger, app.store.Ingredients)
-
-	r.Route("/v1", func(r chi.Router) {
+	healthHandler := health.NewHealthHandler(app.logger)
+	r.Route("/api/v1", func(r chi.Router) {
 		// Public routes
-		r.Get("/health", app.healthCheckHandler)
-		r.Get("/ready", app.readinessCheckHandler)
+		r.Get("/health", healthHandler.HealthCheckHandler)
+		r.Get("/ready", healthHandler.ReadinessCheckHandler)
 
 		// Auth routes
 		r.Post("/auth/login", authHandler.Login)

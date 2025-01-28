@@ -18,21 +18,6 @@ type AuthService struct {
 	tokens   store.TokenStoreInterface
 }
 
-type contextKey string
-
-const (
-	contextKeyUserAgent contextKey = "user_agent"
-	contextKeyClientIP  contextKey = "client_ip"
-)
-
-// Define interfaces for what AuthService needs
-
-type LoginResponse struct {
-	AccessToken  string    `json:"access_token"`
-	RefreshToken string    `json:"refresh_token"`
-	ExpiresAt    time.Time `json:"expires_at"`
-}
-
 func NewAuthService(tokenGen token.Generator, users store.UserStoreInterface, tokens store.TokenStoreInterface) *AuthService {
 	return &AuthService{
 		tokenGen: tokenGen,
