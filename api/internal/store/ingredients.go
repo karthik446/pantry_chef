@@ -7,13 +7,14 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
 	models "github.com/karthik446/pantry_chef/api/internal/domain"
+	"github.com/karthik446/pantry_chef/api/internal/http/dtos"
 )
 
 type IngredientsStore struct {
 	db *pgxpool.Pool
 }
 
-func (s *IngredientsStore) Create(ctx context.Context, dto *models.CreateIngredientDTO) (*models.Ingredient, error) {
+func (s *IngredientsStore) Create(ctx context.Context, dto *dtos.CreateIngredientDTO) (*models.Ingredient, error) {
 	result := &models.Ingredient{
 		Name: dto.Name,
 	}
@@ -90,7 +91,7 @@ func (s *IngredientsStore) List(ctx context.Context) ([]models.Ingredient, int, 
 	return ingredients, count, nil
 }
 
-func (s *IngredientsStore) Update(ctx context.Context, id uuid.UUID, dto *models.CreateIngredientDTO) error {
+func (s *IngredientsStore) Update(ctx context.Context, id uuid.UUID, dto *dtos.CreateIngredientDTO) error {
 	query := `
 		UPDATE ingredients
 		SET name = $1

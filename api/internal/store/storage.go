@@ -8,6 +8,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/karthik446/pantry_chef/api/internal/domain"
+	"github.com/karthik446/pantry_chef/api/internal/http/dtos"
 )
 
 var (
@@ -30,10 +31,10 @@ type TokenStoreInterface interface {
 }
 
 type IngredientStoreInterface interface {
-	Create(ctx context.Context, dto *domain.CreateIngredientDTO) (*domain.Ingredient, error)
+	Create(ctx context.Context, dto *dtos.CreateIngredientDTO) (*domain.Ingredient, error)
 	GetByID(ctx context.Context, id uuid.UUID) (*domain.Ingredient, error)
 	List(ctx context.Context) ([]domain.Ingredient, int, error)
-	Update(ctx context.Context, id uuid.UUID, dto *domain.CreateIngredientDTO) error
+	Update(ctx context.Context, id uuid.UUID, dto *dtos.CreateIngredientDTO) error
 	Delete(ctx context.Context, id uuid.UUID) error
 }
 
@@ -43,11 +44,18 @@ type MetricsStoreInterface interface {
 	GetMetrics(ctx context.Context, query MetricsQuery) (*MetricsResponse, error)
 }
 
+type RecipeStoreInterface interface {
+	Create(ctx context.Context, dto *dtos.CreateRecipeDTO) (*domain.Recipe, error)
+	GetByID(ctx context.Context, id uuid.UUID) (*domain.Recipe, error)
+	List(ctx context.Context, filter domain.RecipeFilter) ([]domain.Recipe, int, error)
+}
+
 type Storage struct {
 	Ingredients IngredientStoreInterface
 	Tokens      TokenStoreInterface
 	Users       UserStoreInterface
 	Metrics     MetricsStoreInterface
+	Recipes     RecipeStoreInterface
 }
 
 func NewStorage(db *pgxpool.Pool) *Storage {
@@ -56,5 +64,6 @@ func NewStorage(db *pgxpool.Pool) *Storage {
 		Tokens:      &TokenStore{db: db},
 		Users:       &UserStore{db: db},
 		Metrics:     &MetricsStore{db: db},
+		Recipes:     &RecipeStore{db: db},
 	}
 }

@@ -9,6 +9,7 @@ import (
 	"github.com/karthik446/pantry_chef/api/internal/http/handlers/health"
 	"github.com/karthik446/pantry_chef/api/internal/http/handlers/ingredients"
 	"github.com/karthik446/pantry_chef/api/internal/http/handlers/metrics"
+	"github.com/karthik446/pantry_chef/api/internal/http/handlers/recipes"
 	"github.com/karthik446/pantry_chef/api/internal/http/middlewares"
 	"github.com/karthik446/pantry_chef/api/internal/platform/config"
 	"github.com/karthik446/pantry_chef/api/internal/platform/token"
@@ -26,7 +27,7 @@ type application struct {
 
 func NewApplication(cfg *config.Config, store *store.Storage, logger *zap.SugaredLogger) (*application, error) {
 	tokenGen := token.NewJWTGenerator(token.Config{
-		AccessTokenDuration:  15 * time.Minute,
+		AccessTokenDuration:  60 * time.Minute,
 		RefreshTokenDuration: 7 * 24 * time.Hour,
 		SigningKey:           []byte(cfg.JWT.Secret),
 	})
@@ -61,6 +62,7 @@ func (app *application) Mount() *chi.Mux {
 	ingredientHandler := ingredients.NewIngredientHandler(app.logger, app.store.Ingredients)
 	healthHandler := health.NewHealthHandler(app.logger)
 	metricsHandler := metrics.NewMetricsHandler(metricsService, app.logger)
+	recipeHandler := recipes.NewRecipeHandler(app.logger, app.store.Recipes)
 	r.Route("/api/v1", func(r chi.Router) {
 		// Public routes
 		r.Get("/health", healthHandler.HealthCheckHandler)
@@ -85,6 +87,18 @@ func (app *application) Mount() *chi.Mux {
 					r.Post("/", ingredientHandler.Create)
 					r.Put("/{id}", ingredientHandler.Update)
 					r.Delete("/{id}", ingredientHandler.Delete)
+				})
+			})
+
+			// Recipes routes
+			r.Route("/recipes", func(r chi.Router) {
+				r.Get("/", recipeHandler.List)
+
+				// Admin only routes
+				r.Group(func(r chi.Router) {
+					r.Use(app.authMid.RequireRole("admin"))
+					r.Post("/", recipeHandler.Create)
+					r.Get("/{id}", recipeHandler.GetByID)
 				})
 			})
 

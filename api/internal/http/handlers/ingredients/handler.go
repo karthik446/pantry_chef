@@ -7,7 +7,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
-	"github.com/karthik446/pantry_chef/api/internal/domain"
+	"github.com/karthik446/pantry_chef/api/internal/http/dtos"
 	"github.com/karthik446/pantry_chef/api/internal/http/handlers"
 	"github.com/karthik446/pantry_chef/api/internal/store"
 	"go.uber.org/zap"
@@ -41,7 +41,7 @@ func (h *IngredientHandler) List(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *IngredientHandler) Create(w http.ResponseWriter, r *http.Request) {
-	var dto domain.CreateIngredientDTO
+	var dto dtos.CreateIngredientDTO
 
 	err := json.NewDecoder(r.Body).Decode(&dto)
 	if err != nil {
@@ -66,7 +66,7 @@ func (h *IngredientHandler) Update(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var dto domain.CreateIngredientDTO
+	var dto dtos.CreateIngredientDTO
 	err = json.NewDecoder(r.Body).Decode(&dto)
 	if err != nil {
 		h.BadRequestResponse(w, r, err)

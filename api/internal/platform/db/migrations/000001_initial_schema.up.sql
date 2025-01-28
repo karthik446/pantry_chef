@@ -96,7 +96,7 @@ CREATE TABLE public.recipes (
   cook_time int NOT NULL CHECK (cook_time >= 0),
   total_time int NOT NULL CHECK (total_time >= 0 AND total_time >= LEAST(prep_time, cook_time)),
   servings int CHECK (servings > 0),
-  source_url text NOT NULL CHECK (source_url IS NULL OR source_url ~ '^https?://'),
+  source_url text CHECK (source_url IS NULL OR source_url ~ '^https?://'),
   created_from_search_query text,
   created_at timestamptz DEFAULT now(),
   updated_at timestamptz DEFAULT now()

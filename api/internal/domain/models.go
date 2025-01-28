@@ -13,10 +13,6 @@ type Ingredient struct {
 	CreatedAt time.Time `json:"created_at"`
 }
 
-type CreateIngredientDTO struct {
-	Name string `json:"name" binding:"required"`
-}
-
 type User struct {
 	ID           uuid.UUID `json:"id"`
 	UserNumber   string    `json:"user_number"`
@@ -60,15 +56,17 @@ type PantryItem struct {
 }
 
 type Recipe struct {
-	ID           uuid.UUID    `json:"id"`
-	Title        string       `json:"title"`
-	Instructions string       `json:"instructions"`
-	PrepTime     *int         `json:"prep_time,omitempty"`
-	CookTime     *int         `json:"cook_time,omitempty"`
-	Servings     *int         `json:"servings,omitempty"`
-	SourceURL    *string      `json:"source_url,omitempty"`
-	CreatedAt    time.Time    `json:"created_at"`
-	Ingredients  []Ingredient `json:"ingredients,omitempty"`
+	ID               uuid.UUID    `json:"id"`
+	Title            string       `json:"title"`
+	Instructions     string       `json:"instructions"`
+	PrepTime         *int         `json:"prep_time,omitempty"`
+	CookTime         *int         `json:"cook_time,omitempty"`
+	TotalTime        *int         `json:"total_time,omitempty"`
+	CreatedFromQuery *string      `json:"created_from_query,omitempty"`
+	Servings         *int         `json:"servings,omitempty"`
+	SourceURL        *string      `json:"source_url,omitempty"`
+	CreatedAt        time.Time    `json:"created_at"`
+	Ingredients      []Ingredient `json:"ingredients,omitempty"`
 }
 
 type RecipeIngredient struct {
@@ -79,28 +77,8 @@ type RecipeIngredient struct {
 	Name         string    `json:"name,omitempty"` // For joined queries
 }
 
-// DTOs
-type CreateRecipeDTO struct {
-	Title        string          `json:"title" binding:"required"`
-	Instructions string          `json:"instructions" binding:"required"`
-	PrepTime     *int            `json:"prep_time"`
-	CookTime     *int            `json:"cook_time"`
-	Servings     *int            `json:"servings"`
-	Ingredients  []IngredientDTO `json:"ingredients,omitempty"`
-}
-
-type IngredientDTO struct {
-	Name     string  `json:"name" binding:"required"`
-	Quantity float64 `json:"quantity" binding:"required"`
-	Unit     string  `json:"unit" binding:"required"`
-}
-
-type UpdateRecipeDTO struct {
-	Title        *string         `json:"title"`
-	Instructions *string         `json:"instructions"`
-	PrepTime     *int            `json:"prep_time"`
-	CookTime     *int            `json:"cook_time"`
-	Servings     *int            `json:"servings"`
-	SourceURL    *string         `json:"source_url"`
-	Ingredients  []IngredientDTO `json:"ingredients,omitempty"`
+type RecipeFilter struct {
+	MaxTotalTime int
+	Limit        int
+	Offset       int
 }
