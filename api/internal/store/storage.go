@@ -48,6 +48,7 @@ type RecipeStoreInterface interface {
 	Create(ctx context.Context, dto *dtos.CreateRecipeDTO) (*domain.Recipe, error)
 	GetByID(ctx context.Context, id uuid.UUID) (*domain.Recipe, error)
 	List(ctx context.Context, filter domain.RecipeFilter) ([]domain.Recipe, int, error)
+	FindUrlsBySearchQuery(ctx context.Context, query string) ([]string, error)
 }
 
 type Storage struct {

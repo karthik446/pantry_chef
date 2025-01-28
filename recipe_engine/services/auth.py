@@ -8,13 +8,12 @@ class AuthService:
 
     def __init__(self, base_url: str):
         self.base_url = base_url
-        self.tokens: Dict[str, Optional[str]] = {
-            "access_token": None,
-            "refresh_token": None,
+        self.tokens: Dict[str, Dict] = {
+            "data": {"access_token": None, "refresh_token": None, "expires_at": None}
         }
 
     def get_access_token(self) -> str:
-        return self.tokens["access_token"]
+        return self.tokens["data"]["access_token"]
 
     def initialize_auth(self) -> bool:
         """Initialize authentication by getting initial access and refresh tokens.
@@ -23,15 +22,14 @@ class AuthService:
             bool: True if authentication was successful, False otherwise.
         """
         auth_data = {
-            "email": os.getenv("API_EMAIL"),
+            "user_number": os.getenv("USER_NUMBER"),
             "password": os.getenv("API_PASSWORD"),
         }
 
         try:
             response = requests.post(f"{self.base_url}/auth/login", json=auth_data)
             response.raise_for_status()
-            tokens = response.json()
-            self.tokens.update(tokens)
+            self.tokens = response.json()
             print("Authentication successful!")
             return True
         except Exception as e:
@@ -65,13 +63,15 @@ class AuthService:
         Returns:
             dict: A dictionary containing the new access and refresh tokens or error information.
         """
-        if not self.tokens["refresh_token"]:
+        if not self.tokens["data"]["refresh_token"]:
             return self.get_auth_tokens()
 
         try:
             response = requests.post(
                 f"{self.base_url}/auth/refresh",
-                headers={"Authorization": f"Bearer {self.tokens['refresh_token']}"},
+                headers={
+                    "Authorization": f"Bearer {self.tokens['data']['refresh_token']}"
+                },
             )
             response.raise_for_status()
             tokens = response.json()
@@ -86,4 +86,4 @@ class AuthService:
         Returns:
             dict: Headers dictionary with Authorization
         """
-        return {"Authorization": f"Bearer {self.tokens['access_token']}"}
+        return {"Authorization": f"Bearer {self.tokens['data']['access_token']}"}

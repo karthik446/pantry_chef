@@ -13,7 +13,7 @@ from .utils import find_print_link, clean_instructions, parse_ingredient, clean_
 
 # Global instances
 auth_service = None
-BASE_URL = "http://localhost:8000/api"
+BASE_URL = "http://localhost:8000/api/v1"
 
 model = HfApiModel()
 search_tool = DuckDuckGoSearchTool()
@@ -397,16 +397,16 @@ def get_submitted_urls(search_query: str) -> dict:
 
     try:
         response = requests.get(
-            f"{BASE_URL}/recipes/admin/urls?search_query={encoded_query}",
+            f"{BASE_URL}/recipes/urlsBySearchQuery?query={encoded_query}",
             headers=headers,
         )
         response.raise_for_status()
-        data = response.json()
-
-        if not data:
+        res = response.json()
+        print(f"Debug - Submitted URLs: {res}")
+        if not res:
             return {"urls": []}
         # Extract just the URLs from the response
-        return {"urls": data or []}
+        return {"urls": res.get("data", []) or []}
     except Exception as e:
         print(f"Error getting submitted URLs: {str(e)}")
         return {"error": str(e)}
@@ -519,7 +519,7 @@ def search_and_submit_recipe(query: str) -> dict:
             matches = len(query_terms.intersection(title_terms))
 
             if matches >= len(query_terms) / 2:
-                recipe["created_from_search_query"] = query
+                recipe["created_from_query"] = query
                 result = submit_recipe(recipe)
                 if "error" not in result:
                     print("Recipe submitted successfully!")
@@ -566,7 +566,7 @@ def submit_recipe(recipe_data: dict) -> dict:
 
     try:
         response = requests.post(
-            f"{BASE_URL}/recipes/admin", json=recipe_data, headers=headers
+            f"{BASE_URL}/recipes", json=recipe_data, headers=headers
         )
 
         if response.status_code == 403:
@@ -590,6 +590,7 @@ class RecipeAgent:
         """Initialize the recipe agent with its tools and model."""
         global auth_service
 
+        print(f"Debug - Initializing Recipe Agent with settings: {settings}")
         auth_service = AuthService(settings.API_BASE_URL)
 
         # Initialize the underlying CodeAgent with tools

@@ -102,3 +102,14 @@ func (h *RecipeHandler) GetByID(w http.ResponseWriter, r *http.Request) {
 
 	h.JsonResponse(w, http.StatusOK, envelope{"data": recipe})
 }
+
+func (h *RecipeHandler) FindUrlsBySearchQuery(w http.ResponseWriter, r *http.Request) {
+	query := r.URL.Query().Get("query")
+	urls, err := h.store.FindUrlsBySearchQuery(r.Context(), query)
+	if err != nil {
+		h.InternalServerError(w, r, err)
+		return
+	}
+
+	h.JsonResponse(w, http.StatusOK, envelope{"data": urls})
+}

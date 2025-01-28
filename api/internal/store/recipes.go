@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -78,6 +79,64 @@ func (s *RecipeStore) Create(ctx context.Context, dto *dtos.CreateRecipeDTO) (*d
 
 	// Fetch complete recipe with ingredients
 	return s.GetByID(ctx, recipe.ID)
+}
+
+func (s *RecipeStore) FindUrlsBySearchQuery(ctx context.Context, query string) ([]string, error) {
+	// Split search query into words and filter out short words
+	words := strings.Split(strings.ToLower(query), " ")
+	searchWords := make([]string, 0)
+	for _, word := range words {
+		if len(word) > 2 {
+			searchWords = append(searchWords, word)
+		}
+	}
+
+	if len(searchWords) == 0 {
+		return []string{}, nil
+	}
+
+	// Query recipes with non-null source_url and created_from_search_query
+	rows, err := s.db.Query(ctx,
+		`SELECT source_url, created_from_search_query 
+		FROM recipes 
+		WHERE source_url IS NOT NULL 
+		AND created_from_search_query IS NOT NULL`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var urls []string
+	for rows.Next() {
+		var sourceURL string
+		var createdFromQuery string
+		if err := rows.Scan(&sourceURL, &createdFromQuery); err != nil {
+			return nil, err
+		}
+
+		// Check if at least 2 search words match
+		existingWords := strings.Split(strings.ToLower(createdFromQuery), " ")
+		matches := 0
+		for _, searchWord := range searchWords {
+			for _, existingWord := range existingWords {
+				if strings.Contains(existingWord, searchWord) {
+					matches++
+					break
+				}
+			}
+		}
+
+		if matches >= 2 {
+			urls = append(urls, sourceURL)
+		}
+	}
+
+	if err = rows.Err(); err != nil {
+		return nil, err
+	}
+
+	return urls, nil
+
 }
 
 func (s *RecipeStore) GetByID(ctx context.Context, id uuid.UUID) (*domain.Recipe, error) {

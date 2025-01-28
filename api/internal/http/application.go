@@ -97,6 +97,7 @@ func (app *application) Mount() *chi.Mux {
 				// Admin only routes
 				r.Group(func(r chi.Router) {
 					r.Use(app.authMid.RequireRole("admin"))
+					r.Get("/urlsBySearchQuery", recipeHandler.FindUrlsBySearchQuery)
 					r.Post("/", recipeHandler.Create)
 					r.Get("/{id}", recipeHandler.GetByID)
 				})

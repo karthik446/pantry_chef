@@ -11,9 +11,9 @@ class Settings(BaseSettings):
         REDIS_URL: URL for Redis cache connection
     """
 
-    API_BASE_URL: str = "http://localhost:8000/api"
-    API_EMAIL: str = "admin@example.com"
-    API_PASSWORD: str = "admin123"
+    API_BASE_URL: str = "http://localhost:8000/api/v1"
+    USER_NUMBER: int = 1234567890
+    API_PASSWORD: str = "password123"
     REDIS_URL: str = "redis://localhost:6379"
 
     class Config:
