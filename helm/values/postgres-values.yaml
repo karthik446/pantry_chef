@@ -1,0 +1,25 @@
+# Basic PostgreSQL configuration
+auth:
+  postgresPassword: "postgres"
+  database: "pantry_chef"
+
+primary:
+  persistence:
+    enabled: true
+    size: 1Gi
+
+global:
+  postgresql:
+    auth:
+      username: postgres
+      password: postgres
+      database: pantry_chef
+
+readReplicas:
+  resources:
+    limits:
+      memory: 512Mi
+      cpu: 500m
+    requests:
+      memory: 256Mi
+      cpu: 250m

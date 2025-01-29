@@ -33,11 +33,15 @@ COPY --from=builder /go/bin/migrate /usr/local/bin/migrate
 RUN adduser -D appuser
 USER appuser
 
-EXPOSE 8000
+EXPOSE 8000 9000
 
 # Use environment variables instead of .env file
-ENV PORT=8000 \
+ENV HTTP_PORT=8000 \
+    GRPC_PORT=9000 \
     DB_URL="" \
-    NODE_ENV="production"
+    DB_MAX_OPEN_CONNS="25" \
+    JWT_SECRET="" \
+    NODE_ENV="production" \
+    VERSION="1.0.0"
 
 CMD ["./server"] 

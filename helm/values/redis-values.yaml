@@ -1,0 +1,21 @@
+architecture: standalone
+
+auth:
+  enabled: true
+  password: redis
+
+master:
+  persistence:
+    enabled: true
+    storageClass: "local-path"
+    size: 1Gi
+  resources:
+    limits:
+      memory: 256Mi
+      cpu: 250m
+    requests:
+      memory: 128Mi
+      cpu: 100m
+
+metrics:
+  enabled: true 

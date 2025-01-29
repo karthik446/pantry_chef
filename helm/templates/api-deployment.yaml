@@ -1,0 +1,37 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: api
+spec:
+  template:
+    spec:
+      initContainers:
+      - name: check-secrets
+        image: busybox
+        command: ['sh', '-c', 'until kubectl get secret api-secrets; do echo waiting for secret; sleep 2; done;']
+      containers:
+      - name: api
+        env:
+        - name: DB_HOST
+          value: "postgres-postgresql.infrastructure"
+        - name: DB_PORT
+          value: "5432"
+        - name: DB_USER
+          value: "postgres"
+        - name: DB_NAME
+          value: "pantry_chef"
+        - name: DB_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: api-secrets
+              key: db-password
+        - name: NEW_RELIC_DISABLE_METRICS
+          value: "true"
+        - name: NEW_RELIC_METRICS_ENABLED
+          value: "false"
+        - name: NEW_RELIC_LOG_ENABLED
+          value: "true"
+        - name: NEW_RELIC_LOG_LEVEL
+          value: "info"
+        # ... rest of your env vars ...
+      # ... rest of containers spec ... 

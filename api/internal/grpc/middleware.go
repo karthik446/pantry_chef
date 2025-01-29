@@ -2,6 +2,7 @@ package grpc_server
 
 import (
 	"context"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -28,15 +29,41 @@ func UnaryServerInterceptor(logger *zap.SugaredLogger) grpc.UnaryServerIntercept
 		peer, _ := peer.FromContext(ctx)
 
 		// Get meter
-		meter := otel.GetMeterProvider().Meter("grpc-server")
+		meter := otel.GetMeterProvider().Meter("pantry-chef")
 
 		// Create metrics
-		requestCounter, _ := meter.Int64Counter("grpc.requests.total")
-		errorCounter, _ := meter.Int64Counter("grpc.errors.total")
-		latencyHistogram, _ := meter.Float64Histogram("grpc.request.duration")
+		requestCounter, _ := meter.Int64Counter("api.requests.total",
+			metric.WithDescription("Total number of API requests"),
+		)
+
+		errorCounter, _ := meter.Int64Counter("api.errors.total",
+			metric.WithDescription("Total number of API errors"),
+		)
+
+		latencyHistogram, _ := meter.Float64Histogram("api.request.duration",
+			metric.WithDescription("Request duration in seconds"),
+			metric.WithUnit("s"),
+		)
+
+		// Custom business metrics
+		recipeCounter, _ := meter.Int64Counter("recipe.operations",
+			metric.WithDescription("Recipe operations counter"),
+		)
 
 		// Process request
 		resp, err := handler(ctx, req)
+
+		// Record metrics with more detailed attributes
+		attrs := []attribute.KeyValue{
+			attribute.String("method", info.FullMethod),
+			attribute.String("request_id", requestID),
+		}
+
+		if strings.Contains(info.FullMethod, "Recipe") {
+			recipeCounter.Add(ctx, 1, metric.WithAttributes(
+				append(attrs, attribute.String("operation", "search"))...,
+			))
+		}
 
 		// Record metrics
 		duration := time.Since(start)

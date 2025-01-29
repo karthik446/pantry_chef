@@ -14,6 +14,7 @@ import (
 	"github.com/karthik446/pantry_chef/api/internal/platform/config"
 	"github.com/karthik446/pantry_chef/api/internal/platform/token"
 	"github.com/karthik446/pantry_chef/api/internal/store"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"go.uber.org/zap"
 )
 
@@ -51,6 +52,10 @@ func (app *application) Mount() *chi.Mux {
 	r.Use(middleware.Recoverer)
 	r.Use(middleware.Timeout(60 * time.Second))
 
+	// Replace old metrics middleware with OTel-based one
+	otelMetricsMid := middlewares.NewOTelMetricsMiddleware(app.logger)
+	r.Use(otelMetricsMid.Metrics)
+
 	metricsService := metrics.NewMetricsService(app.store.Metrics)
 	// Add metrics middleware globally
 	metricsMid := middlewares.NewMetricsMiddleware(metricsService, app.logger)
@@ -61,8 +66,11 @@ func (app *application) Mount() *chi.Mux {
 	authHandler := auth.NewAuthHandler(app.logger, authService)
 	ingredientHandler := ingredients.NewIngredientHandler(app.logger, app.store.Ingredients)
 	healthHandler := health.NewHealthHandler(app.logger)
-	metricsHandler := metrics.NewMetricsHandler(metricsService, app.logger)
 	recipeHandler := recipes.NewRecipeHandler(app.logger, app.store.Recipes)
+
+	// Mount metrics endpoint outside of your API routes
+	r.Handle("/metrics", promhttp.Handler()) // This is where OpenTelemetry exposes its metrics
+
 	r.Route("/api/v1", func(r chi.Router) {
 		// Public routes
 		r.Get("/health", healthHandler.HealthCheckHandler)
@@ -106,15 +114,6 @@ func (app *application) Mount() *chi.Mux {
 			// Logout (requires auth)
 			r.Post("/auth/logout", authHandler.Logout)
 			r.Post("/auth/logout/all", authHandler.LogoutAll)
-		})
-
-		// Admin routes
-		r.Route("/admin", func(r chi.Router) {
-			// First authenticate the user
-			r.Use(app.authMid.Authenticate)
-			// Then check if they're an admin
-			r.Use(app.authMid.RequireRole("admin"))
-			r.Get("/metrics", metricsHandler.GetMetrics)
 		})
 	})
 

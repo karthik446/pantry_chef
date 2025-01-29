@@ -1,6 +1,8 @@
 package config
 
 import (
+	"fmt"
+
 	"github.com/karthik446/pantry_chef/api/internal/platform/env"
 )
 
@@ -16,7 +18,11 @@ type GRPCConfig struct {
 
 // DBConfig holds database configuration
 type DBConfig struct {
-	URL          string `env:"DB_URL,required"`
+	Host         string `env:"DB_HOST" envDefault:"postgres-postgresql.infrastructure"`
+	Port         string `env:"DB_PORT" envDefault:"5432"`
+	User         string `env:"DB_USER" envDefault:"postgres"`
+	Password     string `env:"DB_PASSWORD,required"`
+	DBName       string `env:"DB_NAME" envDefault:"pantry_chef"`
 	MaxOpenConns int    `env:"DATABASE_MAX_OPEN_CONNS" envDefault:"25"`
 }
 
@@ -35,6 +41,11 @@ type Config struct {
 	Version string
 }
 
+func (c *DBConfig) GetURL() string {
+	return fmt.Sprintf("postgresql://%s:%s@%s:%s/%s?sslmode=disable",
+		c.User, c.Password, c.Host, c.Port, c.DBName)
+}
+
 func Load() (*Config, error) {
 	cfg := Config{
 		HTTP: HTTPConfig{
@@ -44,8 +55,12 @@ func Load() (*Config, error) {
 			Port: env.GetString("GRPC_PORT", "9000"),
 		},
 		DB: DBConfig{
-			URL:          env.GetString("DB_URL", ""),
-			MaxOpenConns: env.GetInt("DB_MAX_OPEN_CONNS", 25),
+			Host:         env.GetString("DB_HOST", "postgres-postgresql.infrastructure"),
+			Port:         env.GetString("DB_PORT", "5432"),
+			User:         env.GetString("DB_USER", "postgres"),
+			Password:     env.GetString("DB_PASSWORD", ""),
+			DBName:       env.GetString("DB_NAME", "pantry_chef"),
+			MaxOpenConns: env.GetInt("DATABASE_MAX_OPEN_CONNS", 25),
 		},
 		JWT: JWTConfig{
 			Secret: env.GetString("JWT_SECRET", "your-secret-key"),

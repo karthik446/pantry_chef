@@ -1,94 +1,145 @@
-DO $$ 
-DECLARE 
-    test_user_id uuid;
-    chicken_id uuid;
-    garlic_id uuid;
-    onion_id uuid;
-    salt_id uuid;
-    pepper_id uuid;
-    olive_oil_id uuid;
-    recipe_id uuid;
-BEGIN
-    -- Clean up existing data
-    TRUNCATE public.users, public.ingredients, 
-            public.recipes, public.recipe_ingredients, public.pantry_items CASCADE;
+-- Create users
+INSERT INTO users (id, user_number, password_hash, role) VALUES 
+    ('00000000-0000-0000-0000-000000000000', '0000000000', '$2a$10$rW5wWqbBnT8LxI7jRUg8OuU.XHvv.R5C8zKkVhD3CSWSMXo/bKmfq', 'admin'),
+    ('11111111-1111-1111-1111-111111111111', '1111111111', '$2a$10$rW5wWqbBnT8LxI7jRUg8OuU.XHvv.R5C8zKkVhD3CSWSMXo/bKmfq', 'user'),
+    ('22222222-2222-2222-2222-222222222222', '2222222222', '$2a$10$rW5wWqbBnT8LxI7jRUg8OuU.XHvv.R5C8zKkVhD3CSWSMXo/bKmfq', 'user')
+ON CONFLICT (user_number) DO NOTHING;
 
-    -- Create test user
-    INSERT INTO public.users (id, email, role) 
-    VALUES (gen_random_uuid(), 'test@example.com', 'user')
-    RETURNING id INTO test_user_id;
+-- Add ingredients
+INSERT INTO ingredients (name, normalized_name, aliases) VALUES 
+    ('Salt', 'salt', ARRAY['table salt', 'sea salt']),
+    ('Black Pepper', 'pepper', ARRAY['ground black pepper', 'peppercorns']),
+    ('Olive Oil', 'oil', ARRAY['extra virgin olive oil', 'EVOO']),
+    ('Garlic', 'garlic', ARRAY['garlic cloves', 'minced garlic']),
+    ('Onion', 'onion', ARRAY['yellow onion', 'white onion', 'red onion']),
+    ('Tomato', 'tomato', ARRAY['roma tomato', 'cherry tomato']),
+    ('Potato', 'potato', ARRAY['russet potato', 'yukon gold']),
+    ('Carrot', 'carrot', ARRAY['baby carrots']),
+    ('Rice', 'rice', ARRAY['white rice', 'brown rice', 'jasmine rice']),
+    ('Pasta', 'pasta', ARRAY['spaghetti', 'penne', 'fettuccine']),
+    ('Ground Beef', 'beef', ARRAY['minced beef', 'hamburger meat']),
+    ('Chicken Breast', 'chicken', ARRAY['boneless chicken breast', 'chicken fillets']);
 
-    -- Create basic ingredients
-    INSERT INTO public.ingredients (id, name) VALUES
-    (gen_random_uuid(), 'Chicken Breast') RETURNING id INTO chicken_id;
-    INSERT INTO public.ingredients (id, name) VALUES
-    (gen_random_uuid(), 'Garlic') RETURNING id INTO garlic_id;
-    INSERT INTO public.ingredients (id, name) VALUES
-    (gen_random_uuid(), 'Onion') RETURNING id INTO onion_id;
-    INSERT INTO public.ingredients (id, name) VALUES
-    (gen_random_uuid(), 'Salt') RETURNING id INTO salt_id;
-    INSERT INTO public.ingredients (id, name) VALUES
-    (gen_random_uuid(), 'Black Pepper') RETURNING id INTO pepper_id;
-    INSERT INTO public.ingredients (id, name) VALUES
-    (gen_random_uuid(), 'Olive Oil') RETURNING id INTO olive_oil_id;
 
-    -- Add ingredients to test user's pantry
-    INSERT INTO public.pantry_items (user_id, ingredient_id, quantity, unit) VALUES
-    (test_user_id, chicken_id, 500, 'g'),
-    (test_user_id, garlic_id, 5, 'cloves'),
-    (test_user_id, onion_id, 2, 'pieces'),
-    (test_user_id, salt_id, 100, 'g'),
-    (test_user_id, olive_oil_id, 500, 'ml');
+-- Add some pantry items for users
+INSERT INTO pantry_items (user_id, ingredient_id, quantity, unit) 
+SELECT 
+    '11111111-1111-1111-1111-111111111111',
+    ingredients.id,
+    CASE ingredients.name
+        WHEN 'Salt' THEN 500
+        WHEN 'Black Pepper' THEN 100
+        WHEN 'Olive Oil' THEN 750
+        WHEN 'Garlic' THEN 200
+        WHEN 'Onion' THEN 500
+        WHEN 'Pasta' THEN 1000
+    END,
+    CASE ingredients.name
+        WHEN 'Salt' THEN 'g'::measurement_unit
+        WHEN 'Black Pepper' THEN 'g'::measurement_unit
+        WHEN 'Olive Oil' THEN 'ml'::measurement_unit
+        WHEN 'Garlic' THEN 'g'::measurement_unit
+        WHEN 'Onion' THEN 'g'::measurement_unit
+        WHEN 'Pasta' THEN 'g'::measurement_unit
+    END
+FROM ingredients
+WHERE ingredients.name IN ('Salt', 'Black Pepper', 'Olive Oil', 'Garlic', 'Onion', 'Pasta');
 
-    -- Create a recipe that should match most pantry items (5/6 ingredients = 83% match)
-    INSERT INTO public.recipes (id, title, instructions, prep_time, cook_time, servings)
-    VALUES (
-        gen_random_uuid(),
-        'Garlic Chicken with Onions',
-        'Season chicken with salt and pepper. Sauté garlic and onions in olive oil. Add chicken and cook until done.',
-        15,
-        25,
-        4
-    ) RETURNING id INTO recipe_id;
+-- Add different pantry items for second user
+INSERT INTO pantry_items (user_id, ingredient_id, quantity, unit) 
+SELECT 
+    '22222222-2222-2222-2222-222222222222',
+    ingredients.id,
+    CASE ingredients.name
+        WHEN 'Rice' THEN 1000
+        WHEN 'Chicken Breast' THEN 500
+        WHEN 'Carrot' THEN 300
+        WHEN 'Salt' THEN 250
+        WHEN 'Garlic' THEN 100
+    END,
+    CASE ingredients.name
+        WHEN 'Rice' THEN 'g'::measurement_unit
+        WHEN 'Chicken Breast' THEN 'g'::measurement_unit
+        WHEN 'Carrot' THEN 'g'::measurement_unit
+        WHEN 'Salt' THEN 'g'::measurement_unit
+        WHEN 'Garlic' THEN 'g'::measurement_unit
+    END
+FROM ingredients
+WHERE ingredients.name IN ('Rice', 'Chicken Breast', 'Carrot', 'Salt', 'Garlic');
 
-    -- Add ingredients to recipe
-    INSERT INTO public.recipe_ingredients (recipe_id, ingredient_id, quantity, unit) VALUES
-    (recipe_id, chicken_id, 400, 'g'),
-    (recipe_id, garlic_id, 4, 'cloves'),
-    (recipe_id, onion_id, 1, 'piece'),
-    (recipe_id, salt_id, 5, 'g'),
-    (recipe_id, olive_oil_id, 30, 'ml'),
-    (recipe_id, pepper_id, 2, 'g');
+-- Add recipes
+INSERT INTO recipes (title, instructions, prep_time, cook_time, total_time, servings, source_url) VALUES 
+    ('Basic Pasta Aglio e Olio', 
+     E'1. Boil water\n2. Cook pasta\n3. Sauté garlic in olive oil\n4. Combine and serve', 
+     10, 15, 25, 4,
+     'https://example.com/pasta-aglio-olio'),
+    
+    ('Simple Chicken Rice', 
+     E'1. Cook rice\n2. Season chicken\n3. Cook chicken\n4. Serve together', 
+     15, 25, 40, 4,
+     'https://example.com/chicken-rice'),
+    
+    ('Beef and Potato Stew', 
+     E'1. Brown beef\n2. Add vegetables\n3. Simmer with stock\n4. Season and serve', 
+     20, 60, 80, 6,
+     'https://example.com/beef-stew')
+ON CONFLICT DO NOTHING;
 
-    -- Create another recipe with fewer matching ingredients (3/4 ingredients = 75% match)
-    INSERT INTO public.recipes (id, title, instructions, prep_time, cook_time, servings)
-    VALUES (
-        gen_random_uuid(),
-        'Simple Garlic Chicken',
-        'Season chicken with salt. Sauté garlic in olive oil. Add chicken and cook until done.',
-        10,
-        20,
-        2
-    ) RETURNING id INTO recipe_id;
+-- Add recipe ingredients for Pasta Aglio e Olio
+WITH recipe AS (SELECT id FROM recipes WHERE title = 'Basic Pasta Aglio e Olio')
+INSERT INTO recipe_ingredients (recipe_id, ingredient_id, quantity, unit)
+SELECT 
+    recipe.id,
+    ingredients.id,
+    CASE ingredients.name
+        WHEN 'Pasta' THEN 500
+        WHEN 'Garlic' THEN 30
+        WHEN 'Olive Oil' THEN 60
+        WHEN 'Salt' THEN 5
+        WHEN 'Black Pepper' THEN 2
+    END,
+    CASE ingredients.name
+        WHEN 'Pasta' THEN 'g'::measurement_unit
+        WHEN 'Garlic' THEN 'g'::measurement_unit
+        WHEN 'Olive Oil' THEN 'ml'::measurement_unit
+        WHEN 'Salt' THEN 'g'::measurement_unit
+        WHEN 'Black Pepper' THEN 'g'::measurement_unit
+    END
+FROM recipe, ingredients
+WHERE ingredients.name IN ('Pasta', 'Garlic', 'Olive Oil', 'Salt', 'Black Pepper');
 
-    -- Add ingredients to second recipe
-    INSERT INTO public.recipe_ingredients (recipe_id, ingredient_id, quantity, unit) VALUES
-    (recipe_id, chicken_id, 300, 'g'),
-    (recipe_id, garlic_id, 2, 'cloves'),
-    (recipe_id, salt_id, 3, 'g'),
-    (recipe_id, olive_oil_id, 20, 'ml');
+-- Add recipe ingredients for Simple Chicken Rice
+WITH recipe AS (SELECT id FROM recipes WHERE title = 'Simple Chicken Rice')
+INSERT INTO recipe_ingredients (recipe_id, ingredient_id, quantity, unit)
+SELECT 
+    recipe.id,
+    ingredients.id,
+    CASE ingredients.name
+        WHEN 'Rice' THEN 400
+        WHEN 'Chicken Breast' THEN 600
+        WHEN 'Garlic' THEN 20
+        WHEN 'Salt' THEN 5
+        WHEN 'Black Pepper' THEN 2
+    END,
+    CASE ingredients.name
+        WHEN 'Rice' THEN 'g'::measurement_unit
+        WHEN 'Chicken Breast' THEN 'g'::measurement_unit
+        WHEN 'Garlic' THEN 'g'::measurement_unit
+        WHEN 'Salt' THEN 'g'::measurement_unit
+        WHEN 'Black Pepper' THEN 'g'::measurement_unit
+    END
+FROM recipe, ingredients
+WHERE ingredients.name IN ('Rice', 'Chicken Breast', 'Garlic', 'Salt', 'Black Pepper');
 
-    -- Refresh the materialized view to include our new data
-    REFRESH MATERIALIZED VIEW recipe_pantry_matches;
+-- Refresh materialized view
+REFRESH MATERIALIZED VIEW recipe_pantry_matches;
 
-    -- Password is 'password123' hashed with bcrypt
-    INSERT INTO users (id, user_number, password_hash, role, is_active) 
+
+INSERT INTO users (id, user_number, password_hash, role, is_active) 
     VALUES (
         'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11',  -- fixed UUID for testing
-        '1234567890',                             -- user number
-        '$2a$10$Xc1CZxD.mh6jWCy2ABHdh.7QHChxd7c2R8YhWfFpK9APyaWqj5bqK',  -- 'password123'
+        1234567890,                             -- user number
+        '$2a$10$RC0HaTpwaa9IP2jyD1bjuuQHGSfAiZNGKMr1KFQ9kTHLj1idwYvb2',  -- 'password123'
         'admin',                                  -- role
         true                                      -- is_active
     );
-
-END $$;

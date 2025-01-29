@@ -1,0 +1,25 @@
+auth:
+  username: user
+  password: rabbitmq
+  erlangCookie: cookie123
+
+persistence:
+  enabled: true
+  storageClass: "local-path"
+  size: 1Gi
+
+resources:
+  limits:
+    memory: 512Mi
+    cpu: 300m
+  requests:
+    memory: 256Mi
+    cpu: 150m
+
+metrics:
+  enabled: true
+
+plugins: "rabbitmq_management rabbitmq_prometheus"
+
+service:
+  type: ClusterIP 

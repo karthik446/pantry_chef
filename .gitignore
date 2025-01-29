@@ -50,3 +50,17 @@ dist/
 recipe_engine/recipe/
 
 backend/scripts/csvs/*.csv
+
+
+# Keep these files for k8s setup
+!helm/
+!helm/charts/
+!helm/values/
+!Makefile
+!docs/k8s.md
+!manifests/
+
+# But still ignore any local config or secrets
+helm/values/local.yaml
+helm/values/*secret*.yaml
+.env*

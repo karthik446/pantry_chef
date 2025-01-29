@@ -36,9 +36,14 @@ func main() {
 		)
 	}
 
+	// Add this before db.New
+	sugar.Infof("Attempting to connect to database with URL: postgresql://%s:****@%s:%s/%s?sslmode=disable",
+		cfg.DB.User, cfg.DB.Host, cfg.DB.Port, cfg.DB.DBName)
+
 	// Initialize database
+	dbURL := cfg.DB.GetURL()
 	db, err := db.New(db.Config{
-		URL:          cfg.DB.URL,
+		URL:          dbURL,
 		MaxOpenConns: int32(cfg.DB.MaxOpenConns),
 		MaxIdleTime:  15 * time.Minute,
 	})

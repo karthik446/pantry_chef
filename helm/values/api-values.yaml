@@ -1,0 +1,38 @@
+replicaCount: 2
+
+image:
+  repository: kar446/pantry-chef-api
+  tag: latest
+  pullPolicy: Always
+
+service:
+  type: ClusterIP
+  httpPort: 8000
+  grpcPort: 9000
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 128Mi
+  limits:
+    cpu: 500m
+    memory: 256Mi
+
+# External Secrets configuration
+secrets:
+  enabled: true
+  refreshInterval: "1h"
+  secretStore:
+    name: "kubernetes-secrets"
+    kind: "SecretStore"
+  externalSecrets:
+    - secretKey: "jwt-secret"
+      remoteRef:
+        key: "pantry-chef/api"
+        property: "jwt-secret"
+    - secretKey: "db-password"
+      remoteRef:
+        key: "pantry-chef/api"
+        property: "db-password"
+  dbPassword: postgres
+  jwtSecret: your-jwt-secret-here 

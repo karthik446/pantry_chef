@@ -1,0 +1,4 @@
+apiVersion: v2
+name: pantry-chef-api
+description: A Helm chart for Pantry Chef API
+version: 0.1.0 
