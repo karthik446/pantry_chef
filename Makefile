@@ -323,10 +323,12 @@ init: dev migrate-up
 api-forward:
 	kubectl port-forward svc/api 8000:8000 9000:9000
 
-# Port forward both API and PostgreSQL
+# Port forward API, PostgreSQL, Redis, and RabbitMQ
 forward-all:
 	kubectl port-forward svc/api 8000:8000 9000:9000 & \
-	kubectl port-forward -n infrastructure svc/postgres-postgresql 5432:5432
+	kubectl port-forward -n infrastructure svc/postgres-postgresql 5432:5432 & \
+	kubectl port-forward -n infrastructure svc/redis-master 6379:6379 & \
+	kubectl port-forward -n infrastructure svc/rabbitmq 5672:5672 15672:15672
 
 # =============================================================================
 # Deployment and Cleanup
