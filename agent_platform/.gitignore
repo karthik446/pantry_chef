@@ -42,3 +42,5 @@ ENV/
 
 # Local development
 .DS_Store
+
+.coverage

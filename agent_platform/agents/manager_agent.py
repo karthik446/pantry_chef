@@ -1,5 +1,5 @@
 from smolagents import HfApiModel, ManagedAgent
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 import asyncio
 from typing import Dict, Optional, Any, Set
 from loguru import logger
@@ -7,9 +7,12 @@ from queue import Queue
 import pika
 import json
 
-from queue.setup import AGENT_TASK_QUEUE, AGENT_RESULT_QUEUE
+from queue_handler.queue_setup import (
+    AGENT_TASK_QUEUE,
+    AGENT_RESULT_QUEUE,
+)
 from models.agent_lifecycle import AgentState, AgentHealth
-from agents.base.base_agent import BaseAgent
+from agents.base_agent import BaseAgent
 from models.messages import MessageType, AgentMessage, MessageStatus
 
 
@@ -197,11 +200,13 @@ class ManagerAgent(BaseAgent):
                 routing_key=AGENT_TASK_QUEUE,
                 body=message.model_dump_json(),
                 properties=pika.BasicProperties(
-                    delivery_mode=2,  # Make message persistent
+                    priority=message.priority.value,
+                    delivery_mode=2,
                     content_type="application/json",
                     headers={
                         "target_agent": agent_id,
                         "message_type": message.message_type,
+                        "priority": message.priority.name,
                     },
                 ),
             )

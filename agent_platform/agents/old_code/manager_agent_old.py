@@ -1,5 +1,5 @@
 from typing import Dict, Any
-from agents.recipe_agents.recipe_agent import RecipeAgent
+from agents.recipe_agent import RecipeAgent
 
 
 class ManagerAgent:

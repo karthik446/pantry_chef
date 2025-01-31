@@ -1,7 +1,7 @@
 import requests
 from typing import Dict, Optional
 import os
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from loguru import logger
 from cache.redis_client import RedisClient
 from config.redis_config import AUTH_TOKEN_KEY, AUTH_TOKEN_EXPIRY

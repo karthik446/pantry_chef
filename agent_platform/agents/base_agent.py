@@ -6,7 +6,7 @@ import json
 
 
 from models.messages import AgentMessage, MessageStatus, ErrorDetail, MessageType
-from queue.setup import AGENT_DLQ
+from queue_handler.queue_setup import AGENT_DLQ
 from services.auth import AuthService
 from config.queue_config import (
     AGENT_TASK_QUEUE,

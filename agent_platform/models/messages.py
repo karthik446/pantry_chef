@@ -1,4 +1,4 @@
-from pydantic import BaseModel, Field, validator
+from pydantic import BaseModel, Field, field_validator
 from typing import Optional, Dict, Any, List
 from enum import Enum
 from datetime import datetime
@@ -48,6 +48,15 @@ class ResearchPayload(BaseModel):
     depth: Optional[str] = Field(default="medium", enum=["shallow", "medium", "deep"])
 
 
+class PriorityLevel(int, Enum):
+    """Message priority levels (0=highest)"""
+
+    CRITICAL = 0
+    HIGH = 1
+    MEDIUM = 2
+    LOW = 3
+
+
 # Map message types to their payload models
 MESSAGE_PAYLOAD_MODELS = {
     MessageType.RECIPE_SEARCH: RecipeSearchPayload,
@@ -71,8 +80,9 @@ class AgentMessage(BaseModel):
     max_retries: int = 3
     parent_message_id: Optional[str] = None
     metadata: Dict[str, Any] = Field(default_factory=dict)
+    priority: PriorityLevel = Field(default=PriorityLevel.MEDIUM)
 
-    @validator("updated_at", always=True)
+    @field_validator("updated_at", mode="before")
     def update_timestamp(cls, v, values):
         """Always update the updated_at timestamp."""
         return datetime.utcnow()

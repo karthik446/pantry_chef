@@ -1,6 +1,6 @@
 from loguru import logger
 import sys
-from queue.setup import setup_rabbitmq
+from queue_handler.queue_setup import setup_rabbitmq
 
 # Configure logger
 logger.remove()  # Remove default handler

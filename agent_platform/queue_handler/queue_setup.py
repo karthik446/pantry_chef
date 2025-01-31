@@ -12,6 +12,7 @@ from config.queue_config import (
     RABBITMQ_PORT,
     RABBITMQ_USER,
     RABBITMQ_PASSWORD,
+    RABBITMQ_DEFAULT_PRIORITY,
 )
 
 
@@ -41,6 +42,7 @@ class QueueSetup:
                 "x-dead-letter-exchange": "",
                 "x-dead-letter-routing-key": AGENT_DLQ,
                 "x-message-ttl": MESSAGE_TTL,
+                "x-max-priority": RABBITMQ_DEFAULT_PRIORITY,
             },
         )
 
