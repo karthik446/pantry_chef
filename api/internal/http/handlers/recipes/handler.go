@@ -22,6 +22,17 @@ type RecipeHandler struct {
 
 type envelope map[string]interface{}
 
+type WorkflowPayload struct {
+	SearchQuery     string   `json:"search_query"`
+	ExcludedDomains []string `json:"excluded_domains"`
+	NumberOfUrls    int      `json:"number_of_urls"`
+}
+
+type WorkflowCommand struct {
+	WorkflowType    string          `json:"workflow_type"`
+	WorkflowPayload WorkflowPayload `json:"workflow_payload"`
+}
+
 func NewRecipeHandler(logger *zap.SugaredLogger, store store.RecipeStoreInterface) *RecipeHandler {
 	return &RecipeHandler{
 		BaseHandler: handlers.NewBaseHandler(logger),

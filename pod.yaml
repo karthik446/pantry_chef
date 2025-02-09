@@ -1,0 +1,184 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  creationTimestamp: "2025-02-07T04:27:41Z"
+  generateName: pantry-chef-api-6b78d897f6-
+  labels:
+    app: pantry-chef-api
+    pod-template-hash: 6b78d897f6
+  name: pantry-chef-api-6b78d897f6-2qz5r
+  namespace: default
+  ownerReferences:
+  - apiVersion: apps/v1
+    blockOwnerDeletion: true
+    controller: true
+    kind: ReplicaSet
+    name: pantry-chef-api-6b78d897f6
+    uid: 1b27e72e-a674-4f6f-88b5-105403c4bbd8
+  resourceVersion: "114228"
+  uid: bf030836-465d-4475-bfa9-14c37edf38df
+spec:
+  containers:
+  - env:
+    - name: HTTP_PORT
+      value: "8000"
+    - name: GRPC_PORT
+      value: "9000"
+    - name: DB_URL
+      value: postgresql://postgres:$(DB_PASSWORD)@postgres-postgresql.infrastructure:5432/pantry_chef?sslmode=disable
+    - name: DB_PASSWORD
+      valueFrom:
+        secretKeyRef:
+          key: db-password
+          name: api-secrets
+    - name: JWT_SECRET
+      valueFrom:
+        secretKeyRef:
+          key: jwt-secret
+          name: api-secrets
+    - name: NODE_ENV
+      value: production
+    - name: NEW_RELIC_METADATA_KUBERNETES_CLUSTER_NAME
+      value: agentic-platform
+    - name: NEW_RELIC_METADATA_KUBERNETES_NODE_NAME
+      valueFrom:
+        fieldRef:
+          apiVersion: v1
+          fieldPath: spec.nodeName
+    - name: NEW_RELIC_METADATA_KUBERNETES_NAMESPACE_NAME
+      valueFrom:
+        fieldRef:
+          apiVersion: v1
+          fieldPath: metadata.namespace
+    - name: NEW_RELIC_METADATA_KUBERNETES_POD_NAME
+      valueFrom:
+        fieldRef:
+          apiVersion: v1
+          fieldPath: metadata.name
+    - name: NEW_RELIC_METADATA_KUBERNETES_CONTAINER_NAME
+      value: api
+    - name: NEW_RELIC_METADATA_KUBERNETES_CONTAINER_IMAGE_NAME
+      value: kar446/pantry-chef-api:latest
+    - name: NEW_RELIC_METADATA_KUBERNETES_DEPLOYMENT_NAME
+      value: pantry-chef-api
+    image: kar446/pantry-chef-api:latest
+    imagePullPolicy: Always
+    name: api
+    ports:
+    - containerPort: 8000
+      name: http
+      protocol: TCP
+    - containerPort: 9000
+      name: grpc
+      protocol: TCP
+    resources:
+      limits:
+        cpu: 500m
+        memory: 256Mi
+      requests:
+        cpu: 100m
+        memory: 128Mi
+    terminationMessagePath: /dev/termination-log
+    terminationMessagePolicy: File
+    volumeMounts:
+    - mountPath: /var/run/secrets/kubernetes.io/serviceaccount
+      name: kube-api-access-k7c9f
+      readOnly: true
+  dnsPolicy: ClusterFirst
+  enableServiceLinks: true
+  nodeName: k3d-agentic-platform-server-0
+  preemptionPolicy: PreemptLowerPriority
+  priority: 0
+  restartPolicy: Always
+  schedulerName: default-scheduler
+  securityContext: {}
+  serviceAccount: default
+  serviceAccountName: default
+  terminationGracePeriodSeconds: 30
+  tolerations:
+  - effect: NoExecute
+    key: node.kubernetes.io/not-ready
+    operator: Exists
+    tolerationSeconds: 300
+  - effect: NoExecute
+    key: node.kubernetes.io/unreachable
+    operator: Exists
+    tolerationSeconds: 300
+  volumes:
+  - name: kube-api-access-k7c9f
+    projected:
+      defaultMode: 420
+      sources:
+      - serviceAccountToken:
+          expirationSeconds: 3607
+          path: token
+      - configMap:
+          items:
+          - key: ca.crt
+            path: ca.crt
+          name: kube-root-ca.crt
+      - downwardAPI:
+          items:
+          - fieldRef:
+              apiVersion: v1
+              fieldPath: metadata.namespace
+            path: namespace
+status:
+  conditions:
+  - lastProbeTime: null
+    lastTransitionTime: "2025-02-07T04:27:44Z"
+    status: "True"
+    type: PodReadyToStartContainers
+  - lastProbeTime: null
+    lastTransitionTime: "2025-02-07T04:27:41Z"
+    status: "True"
+    type: Initialized
+  - lastProbeTime: null
+    lastTransitionTime: "2025-02-07T04:27:41Z"
+    message: 'containers with unready status: [api]'
+    reason: ContainersNotReady
+    status: "False"
+    type: Ready
+  - lastProbeTime: null
+    lastTransitionTime: "2025-02-07T04:27:41Z"
+    message: 'containers with unready status: [api]'
+    reason: ContainersNotReady
+    status: "False"
+    type: ContainersReady
+  - lastProbeTime: null
+    lastTransitionTime: "2025-02-07T04:27:41Z"
+    status: "True"
+    type: PodScheduled
+  containerStatuses:
+  - containerID: containerd://d4870ca447cb97549391f13f1aaab578edae63f4a6c2f4fb7bdd9c89d124b1d5
+    image: docker.io/kar446/pantry-chef-api:latest
+    imageID: docker.io/kar446/pantry-chef-api@sha256:87cc93d2cba646e0280576820fa24f3e450447561bada3f40c98577babd1e16f
+    lastState:
+      terminated:
+        containerID: containerd://d4870ca447cb97549391f13f1aaab578edae63f4a6c2f4fb7bdd9c89d124b1d5
+        exitCode: 1
+        finishedAt: "2025-02-07T04:48:59Z"
+        reason: Error
+        startedAt: "2025-02-07T04:48:59Z"
+    name: api
+    ready: false
+    restartCount: 9
+    started: false
+    state:
+      waiting:
+        message: back-off 5m0s restarting failed container=api pod=pantry-chef-api-6b78d897f6-2qz5r_default(bf030836-465d-4475-bfa9-14c37edf38df)
+        reason: CrashLoopBackOff
+    volumeMounts:
+    - mountPath: /var/run/secrets/kubernetes.io/serviceaccount
+      name: kube-api-access-k7c9f
+      readOnly: true
+      recursiveReadOnly: Disabled
+  hostIP: 172.18.0.2
+  hostIPs:
+  - ip: 172.18.0.2
+  phase: Running
+  podIP: 10.42.0.80
+  podIPs:
+  - ip: 10.42.0.80
+  qosClass: Burstable
+  startTime: "2025-02-07T04:27:41Z"

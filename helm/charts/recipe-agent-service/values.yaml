@@ -1,0 +1,45 @@
+replicaCount: 1  # Single consumer instance
+image:
+  repository: kar446/recipe-agent-service
+  tag: v1.0.0
+  pullPolicy: Always
+
+rabbitmq:
+  enabled: false  # Set to true if you want to deploy dedicated RabbitMQ
+  url: amqp://user:$(RABBITMQ_PASSWORD)@rabbitmq.infrastructure.svc.cluster.local:5672
+  ip: "10.43.214.126"  # Set this to your actual ClusterIP
+
+resources:
+  limits:
+    cpu: 1000m
+    memory: 512Mi
+  requests:
+    cpu: 100m
+    memory: 128Mi
+
+autoscaling:
+  enabled: false
+
+env:
+  RABBITMQ_HOST: rabbitmq.infrastructure.svc.cluster.local  # Use ClusterIP service
+  RABBITMQ_PORT: "5672"
+  RABBITMQ_USER: "user"
+  RABBITMQ_PASSWORD: "rabbitmq"  # Still needs to be secret in prod
+  WORKFLOW_COMMANDS_QUEUE_NAME: "workflow_commands"
+
+# Add these DNS settings
+dnsPolicy: "None"
+dnsConfig:
+  nameservers:
+    - 10.43.0.10  # Replace with actual CoreDNS IP from `kubectl get svc -n kube-system kube-dns`
+  searches:
+    - infrastructure.svc.cluster.local
+    - svc.cluster.local
+    - cluster.local
+  options:
+    - name: ndots
+      value: "3"
+    - name: attempts
+      value: "5"
+    - name: timeout
+      value: "1"

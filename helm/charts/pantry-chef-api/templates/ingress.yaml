@@ -1,0 +1,23 @@
+{{- if .Values.ingress.enabled }}
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: pantry-chef-ingress
+spec:
+  ingressClassName: {{ .Values.ingress.className | quote }}
+  rules:
+  {{- range .Values.ingress.hosts }}
+    - host: {{ .host | default "" | quote }}
+      http:
+        paths:
+        {{- range .paths }}
+          - path: {{ .path | quote }}
+            pathType: {{ .pathType | quote }}
+            backend:
+              service:
+                name: pantry-chef-api
+                port:
+                  number: {{ $.Values.service.httpPort }}
+        {{- end }}
+  {{- end }}
+{{- end }} 

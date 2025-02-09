@@ -4,14 +4,12 @@ import (
 	"context"
 	"fmt"
 	"log"
-	"net"
 	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
 	"time"
 
-	grpcServer "github.com/karthik446/pantry_chef/api/internal/grpc"
 	httpServer "github.com/karthik446/pantry_chef/api/internal/http"
 	"github.com/karthik446/pantry_chef/api/internal/platform/config"
 	"github.com/karthik446/pantry_chef/api/internal/platform/db"
@@ -75,15 +73,6 @@ func main() {
 		WriteTimeout: 30 * time.Second,
 	}
 
-	// Initialize gRPC server
-	grpcSrv := grpcServer.NewGRPCServer(sugar)
-	grpcListener, err := net.Listen("tcp", fmt.Sprintf(":%s", cfg.GRPC.Port))
-	if err != nil {
-		logger.Fatal("Failed to create gRPC listener",
-			zap.Error(err),
-		)
-	}
-
 	// Setup signal handling for graceful shutdown
 	shutdown := make(chan os.Signal, 1)
 	signal.Notify(shutdown, syscall.SIGINT, syscall.SIGTERM)
@@ -100,18 +89,6 @@ func main() {
 		}
 	}()
 
-	// Start gRPC server
-	go func() {
-		logger.Info("Starting gRPC server",
-			zap.String("addr", cfg.GRPC.Port),
-		)
-		if err := grpcSrv.Serve(grpcListener); err != nil {
-			logger.Fatal("gRPC server failed",
-				zap.Error(err),
-			)
-		}
-	}()
-
 	// Wait for interrupt signal
 	<-shutdown
 	logger.Info("Shutting down servers...")
@@ -120,13 +97,19 @@ func main() {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
-	// Stop gRPC server
-	grpcSrv.GracefulStop()
-
 	// Stop HTTP server
 	if err := srv.Shutdown(ctx); err != nil {
 		logger.Error("Server shutdown error",
 			zap.Error(err),
 		)
 	}
+
+	if app != nil && app.GetRabbitConn() != nil {
+		if err := app.GetRabbitConn().Close(); err != nil {
+			logger.Error("RabbitMQ connection close error", zap.Error(err))
+		}
+		logger.Info("RabbitMQ connection closed")
+	}
+
+	logger.Info("Server shutdown complete")
 }

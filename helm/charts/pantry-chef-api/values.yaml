@@ -1,0 +1,43 @@
+service:
+  type: ClusterIP
+  httpPort: 8000
+  grpcPort: 9000
+
+ingress:
+  enabled: true
+  className: "nginx"
+  hosts:
+    - host: ""  # Empty string for hostless ingress
+      paths:
+        - path: /pantry-chef
+          pathType: Prefix
+
+secrets:
+  enabled: false  # Set to true when using external secrets
+  dbPassword: "postgres"
+  jwtSecret: "your-jwt-secret-here"
+  # External secrets config (only needed if enabled=true)
+  externalSecret:
+    secretStore: "kubernetes-secrets"
+    refreshInterval: "1h"
+    mappings:
+      jwt-secret: "pantry-chef/api#jwt-secret"
+      db-password: "pantry-chef/api#db-password"
+
+replicaCount: 2
+
+image:
+  repository: kar446/pantry-chef-api
+  tag: latest
+  pullPolicy: Always
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 128Mi
+  limits:
+    cpu: 500m
+    memory: 256Mi
+
+rabbitmq:
+  url: "amqp://user:rabbitmq@rabbitmq.infrastructure.svc.cluster.local:5672/" 

@@ -1,7 +1,0 @@
-mirrors:
-  "k3d-pantry-registry.localhost:5050":
-    endpoint:
-      - http://k3d-pantry-registry:5050
-  "k3d-pantry-registry:5050":
-    endpoint:
-      - http://k3d-pantry-registry:5050 

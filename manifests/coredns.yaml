@@ -47,6 +47,10 @@ subjects:
   namespace: kube-system
 ---
 apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: coredns
+  namespace: kube-system
 data:
   Corefile: |
     .:53 {
@@ -71,58 +75,67 @@ data:
         import /etc/coredns/custom/*.override
     }
     import /etc/coredns/custom/*.server
-  NodeHosts: |
-    192.168.65.254 host.k3d.internal
-    172.18.0.4 k3d-pantry-chef-agent-1
-    172.18.0.7 k3d-pantry-chef-serverlb
-    172.18.0.2 k3d-pantry-chef-tools
-    172.18.0.3 k3d-pantry-chef-server-0
-    172.18.0.5 k3d-pantry-chef-agent-0
-    172.18.0.6 k3d-pantry-registry.localhost
-kind: ConfigMap
-metadata:
-  name: coredns
-  namespace: kube-system
 ---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  labels:
-    k8s-app: kube-dns
-    kubernetes.io/name: CoreDNS
   name: coredns
   namespace: kube-system
+  labels:
+    k8s-app: kube-dns
+    kubernetes.io/name: "CoreDNS"
 spec:
   revisionHistoryLimit: 0
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 1
   selector:
     matchLabels:
       k8s-app: kube-dns
-  strategy:
-    rollingUpdate:
-      maxUnavailable: 1
-    type: RollingUpdate
   template:
     metadata:
       labels:
         k8s-app: kube-dns
     spec:
+      priorityClassName: "system-cluster-critical"
+      serviceAccountName: coredns
+      tolerations:
+        - key: "CriticalAddonsOnly"
+          operator: "Exists"
+        - key: "node-role.kubernetes.io/control-plane"
+          operator: "Exists"
+          effect: "NoSchedule"
+        - key: "node-role.kubernetes.io/master"
+          operator: "Exists"
+          effect: "NoSchedule"
+      nodeSelector:
+        kubernetes.io/os: linux
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: DoNotSchedule
+          labelSelector:
+            matchLabels:
+              k8s-app: kube-dns
       containers:
-      - args:
-        - -conf
-        - /etc/coredns/Corefile
-        image: rancher/mirrored-coredns-coredns:1.12.0
+      - name: coredns
+        image: "rancher/mirrored-coredns-coredns:1.12.0"
         imagePullPolicy: IfNotPresent
-        livenessProbe:
-          failureThreshold: 3
-          httpGet:
-            path: /health
-            port: 8080
-            scheme: HTTP
-          initialDelaySeconds: 60
-          periodSeconds: 10
-          successThreshold: 1
-          timeoutSeconds: 1
-        name: coredns
+        resources:
+          limits:
+            memory: 170Mi
+          requests:
+            cpu: 100m
+            memory: 70Mi
+        args: [ "-conf", "/etc/coredns/Corefile" ]
+        volumeMounts:
+        - name: config-volume
+          mountPath: /etc/coredns
+          readOnly: true
+        - name: custom-config-volume
+          mountPath: /etc/coredns/custom
+          readOnly: true
         ports:
         - containerPort: 53
           name: dns
@@ -133,22 +146,6 @@ spec:
         - containerPort: 9153
           name: metrics
           protocol: TCP
-        readinessProbe:
-          failureThreshold: 3
-          httpGet:
-            path: /ready
-            port: 8181
-            scheme: HTTP
-          initialDelaySeconds: 0
-          periodSeconds: 2
-          successThreshold: 1
-          timeoutSeconds: 1
-        resources:
-          limits:
-            memory: 170Mi
-          requests:
-            cpu: 100m
-            memory: 70Mi
         securityContext:
           allowPrivilegeEscalation: false
           capabilities:
@@ -157,65 +154,58 @@ spec:
             drop:
             - all
           readOnlyRootFilesystem: true
-        volumeMounts:
-        - mountPath: /etc/coredns
-          name: config-volume
-          readOnly: true
-        - mountPath: /etc/coredns/custom
-          name: custom-config-volume
-          readOnly: true
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8080
+            scheme: HTTP
+          initialDelaySeconds: 60
+          periodSeconds: 10
+          timeoutSeconds: 1
+          successThreshold: 1
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /ready
+            port: 8181
+            scheme: HTTP
+          initialDelaySeconds: 0
+          periodSeconds: 2
+          timeoutSeconds: 1
+          successThreshold: 1
+          failureThreshold: 3
       dnsPolicy: Default
-      nodeSelector:
-        kubernetes.io/os: linux
-      priorityClassName: system-cluster-critical
-      serviceAccountName: coredns
-      tolerations:
-      - key: CriticalAddonsOnly
-        operator: Exists
-      - effect: NoSchedule
-        key: node-role.kubernetes.io/control-plane
-        operator: Exists
-      - effect: NoSchedule
-        key: node-role.kubernetes.io/master
-        operator: Exists
-      topologySpreadConstraints:
-      - labelSelector:
-          matchLabels:
-            k8s-app: kube-dns
-        maxSkew: 1
-        topologyKey: kubernetes.io/hostname
-        whenUnsatisfiable: DoNotSchedule
       volumes:
-      - configMap:
-          items:
-          - key: Corefile
-            path: Corefile
-          - key: NodeHosts
-            path: NodeHosts
-          name: coredns
-        name: config-volume
-      - configMap:
-          name: coredns-custom
-          optional: true
-        name: custom-config-volume
+        - name: config-volume
+          configMap:
+            name: coredns
+            items:
+            - key: Corefile
+              path: Corefile
+            - key: NodeHosts
+              path: NodeHosts
+        - name: custom-config-volume
+          configMap:
+            name: coredns-custom
+            optional: true
 ---
 apiVersion: v1
 kind: Service
 metadata:
+  name: kube-dns
+  namespace: kube-system
   annotations:
     prometheus.io/port: "9153"
     prometheus.io/scrape: "true"
   labels:
     k8s-app: kube-dns
     kubernetes.io/cluster-service: "true"
-    kubernetes.io/name: CoreDNS
-  name: kube-dns
-  namespace: kube-system
+    kubernetes.io/name: "CoreDNS"
 spec:
+  selector:
+    k8s-app: kube-dns
   clusterIP: 10.43.0.10
-  clusterIPs:
-  - 10.43.0.10
-  ipFamilyPolicy: SingleStack
+  clusterIPs: [10.43.0.10]
   ports:
   - name: dns
     port: 53
@@ -226,5 +216,4 @@ spec:
   - name: metrics
     port: 9153
     protocol: TCP
-  selector:
-    k8s-app: kube-dns
+  ipFamilyPolicy: SingleStack

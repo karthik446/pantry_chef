@@ -47,9 +47,7 @@ dist/
 .env.*
 
 # Project specific
-recipe_engine/recipe/
 
-backend/scripts/csvs/*.csv
 
 
 # Keep these files for k8s setup

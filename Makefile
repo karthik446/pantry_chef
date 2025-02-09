@@ -1,4 +1,4 @@
-.PHONY: dev migrate-up migrate-down seed db-reset down build run test clean k3d-create k3d-delete k3d-start k3d-stop helm-init k3d-clean helm-setup create-infra-ns install-postgres uninstall-postgres get-postgres-password install-infra install-redis uninstall-redis get-redis-password install-rabbitmq uninstall-rabbitmq get-rabbitmq-password verify-persistence install-external-secrets uninstall-external-secrets create-monitoring-ns install-newrelic uninstall-newrelic install-observability create-istio-ns install-istio-base install-istiod install-istio-ingress enable-istio-injection uninstall-istio build-api install-api uninstall-api create-db k8s-migrate clean-images deploy-all clean-all deploy-seed api-forward forward-all
+.PHONY: dev migrate-up migrate-down seed db-reset down build run test clean k3d-create k3d-delete k3d-start k3d-stop helm-init k3d-clean helm-setup create-infra-ns install-postgres uninstall-postgres get-postgres-password install-infra install-redis uninstall-redis get-redis-password create-monitoring-ns install-newrelic uninstall-newrelic install-observability  build-api install-api uninstall-api create-db k8s-migrate clean-images deploy-all clean-all deploy-seed api-forward forward-all verify-rabbitmq-dns
 
 # =============================================================================
 # Base Variables
@@ -11,7 +11,7 @@ BINARY_NAME=pantry-chef-api
 BUILD_DIR=build
 
 # Kubernetes cluster name
-CLUSTER_NAME=pantry-chef
+CLUSTER_NAME=agentic-platform
 
 # Infrastructure namespace
 INFRA_NAMESPACE=infrastructure
@@ -25,7 +25,6 @@ k3d-create:
 		--api-port 6550 \
 		--port "8080:80@loadbalancer" \
 		--registry-create k3d-pantry-registry.localhost:5050 \
-		--registry-config "$(PWD)/registries.yaml" \
 		--servers 1 \
 		--agents 2 \
 		--image rancher/k3s:latest \
@@ -58,14 +57,10 @@ helm-init:
 	helm repo add newrelic https://helm-charts.newrelic.com
 	helm repo add bitnami https://charts.bitnami.com/bitnami
 	helm repo add external-secrets https://charts.external-secrets.io
-	helm repo add istio https://istio-release.storage.googleapis.com/charts
+
 	helm repo update
 
-# Create Helm directory structure if it doesn't exist
-helm-setup:
-	mkdir -p helm/charts/api/templates
-	mkdir -p helm/charts/api/values
-	helm create helm/charts/api
+
 
 # =============================================================================
 # Infrastructure Management
@@ -87,11 +82,7 @@ install-redis:
 		--namespace $(INFRA_NAMESPACE) \
 		--values helm/values/redis-values.yaml
 
-# Install RabbitMQ
-install-rabbitmq:
-	helm upgrade --install rabbitmq bitnami/rabbitmq \
-		--namespace $(INFRA_NAMESPACE) \
-		--values helm/values/rabbitmq-values.yaml
+
 
 # Install external-secrets operator
 install-external-secrets:
@@ -99,13 +90,36 @@ install-external-secrets:
 		--namespace $(INFRA_NAMESPACE) \
 		--values helm/values/external-secrets-values.yaml
 
+# Install RabbitMQ
+install-rabbitmq:
+	helm upgrade --install rabbitmq bitnami/rabbitmq \
+		--namespace $(INFRA_NAMESPACE) \
+		--values helm/values/rabbitmq-values.yaml
+
 # Install core infrastructure
 install-infra: helm-init create-infra-ns install-external-secrets install-postgres install-redis install-rabbitmq
 	@echo "Core infrastructure installed"
 	@echo "Run 'make get-postgres-password' to get the PostgreSQL password"
 	@echo "Run 'make get-redis-password' to get the Redis password"
-	@echo "Run 'make get-rabbitmq-password' to get the RabbitMQ password"
 
+create-queues:
+	kubectl exec -n infrastructure $$(kubectl get pod -n infrastructure -l app.kubernetes.io/name=rabbitmq -o jsonpath='{.items[0].metadata.name}') -- \
+	sh -c "curl -X PUT -u user:rabbitmq http://localhost:15672/api/queues/%2f/workflow_commands -H 'content-type:application/json' -d '{\"durable\":true, \"arguments\": {\"x-queue-type\": \"quorum\"}}'"
+
+check-queue-messages:
+	kubectl exec -n infrastructure $$(kubectl get pod -n infrastructure -l app.kubernetes.io/name=rabbitmq -o jsonpath='{.items[0].metadata.name}') -- \
+		curl -s -u user:rabbitmq http://localhost:15672/api/queues/%2F/recipe_searches | jq '{messages: .messages, ready: .messages_ready, unacked: .messages_unacknowledged}'
+
+create-workflow-queue:
+	kubectl exec -n infrastructure $$(kubectl get pod -n infrastructure -l app.kubernetes.io/name=rabbitmq -o jsonpath='{.items[0].metadata.name}') -- \
+	  sh -c "curl -X PUT -u user:rabbitmq http://localhost:15672/api/queues/%2f/workflow_queue -H 'content-type:application/json' -d '{\"durable\":true, \"arguments\": {\"x-queue-type\": \"quorum\", \"x-max-length\": 10000, \"x-max-length-bytes\": 104857600, \"x-overflow\": \"reject-publish\"}}'"
+	kubectl exec -n infrastructure $$(kubectl get pod -n infrastructure -l app.kubernetes.io/name=rabbitmq -o jsonpath='{.items[0].metadata.name}') -- \
+  curl -s -u user:rabbitmq http://localhost:15672/api/queues/%2F/workflow_queue | jq '{messages: .messages, ready: .messages_ready, unacked: .messages_unacknowledged}'
+
+send-test-message:
+	kubectl exec -n infrastructure $$(kubectl get pod -n infrastructure -l app.kubernetes.io/name=rabbitmq -o jsonpath='{.items[0].metadata.name}') -- \
+	  rabbitmqctl publish exchange=workflow_commands routing_key=workflow_commands payload='{"message": "Test message from make command"}'
+	  
 # =============================================================================
 # Infrastructure Cleanup
 # =============================================================================
@@ -119,7 +133,6 @@ uninstall-redis:
 	helm uninstall redis --namespace $(INFRA_NAMESPACE)
 	kubectl delete pvc -l app.kubernetes.io/name=redis -n $(INFRA_NAMESPACE)
 
-# Uninstall RabbitMQ
 uninstall-rabbitmq:
 	helm uninstall rabbitmq --namespace $(INFRA_NAMESPACE)
 	kubectl delete pvc -l app.kubernetes.io/name=rabbitmq -n $(INFRA_NAMESPACE)
@@ -136,7 +149,6 @@ clean-infra:
 	helm uninstall external-secrets --namespace $(INFRA_NAMESPACE) || true
 	kubectl delete pvc -l app.kubernetes.io/name=postgresql -n $(INFRA_NAMESPACE) || true
 	kubectl delete pvc -l app.kubernetes.io/name=redis -n $(INFRA_NAMESPACE) || true
-	kubectl delete pvc -l app.kubernetes.io/name=rabbitmq -n $(INFRA_NAMESPACE) || true
 	kubectl delete namespace $(INFRA_NAMESPACE) || true
 
 # =============================================================================
@@ -149,10 +161,6 @@ get-postgres-password:
 # Get Redis password
 get-redis-password:
 	@kubectl get secret --namespace $(INFRA_NAMESPACE) redis -o jsonpath="{.data.redis-password}" | base64 --decode | tr -d '\n'
-
-# Get RabbitMQ password
-get-rabbitmq-password:
-	@kubectl get secret --namespace $(INFRA_NAMESPACE) rabbitmq -o jsonpath="{.data.rabbitmq-password}" | base64 --decode | tr -d '\n'
 
 # =============================================================================
 # Monitoring and Observability
@@ -195,47 +203,7 @@ clean-monitoring:
 	kubectl delete crd newrelicrequests.newrelic.com || true
 	kubectl delete crd alerts.newrelic.com || true
 
-# =============================================================================
-# Service Mesh (Istio)
-# =============================================================================
-# Create istio-system namespace
-create-istio-ns:
-	kubectl create namespace istio-system --dry-run=client -o yaml | kubectl apply -f -
 
-# Install Istio base
-install-istio-base:
-	helm upgrade --install istio-base istio/base \
-		--namespace istio-system \
-		--create-namespace \
-		--wait
-
-# Install Istio control plane
-install-istiod:
-	helm upgrade --install istiod istio/istiod \
-		--namespace istio-system \
-		--wait
-
-# Install Istio ingress gateway
-install-istio-ingress:
-	helm upgrade --install istio-ingress istio/gateway \
-		--namespace istio-system \
-		--wait
-
-# Enable Istio injection for default namespace
-enable-istio-injection:
-	kubectl label namespace default istio-injection=enabled --overwrite
-
-# Install complete Istio stack
-install-istio: create-istio-ns install-istio-base install-istiod install-istio-ingress enable-istio-injection
-	@echo "Istio service mesh installed"
-	@echo "Injection enabled for default namespace"
-
-# Uninstall Istio components
-clean-istio:
-	helm uninstall istio-ingress --namespace istio-system || true
-	helm uninstall istiod --namespace istio-system || true
-	helm uninstall istio-base --namespace istio-system || true
-	kubectl delete namespace istio-system || true
 
 # =============================================================================
 # API Deployment and Management
@@ -248,15 +216,53 @@ build-api: clean-images
 	@echo "Image pushed successfully"
 
 # Install API chart
-install-api: build-api
-	helm upgrade --install api ./helm/charts/api \
-		--values helm/values/api-values.yaml \
+install-pantry-chef: build-api
+	helm upgrade --install pantry-chef-api ./helm/charts/pantry-chef-api \
+		--set secrets.enabled=false \
 		--namespace default \
 		--create-namespace
 
+redeploy-api: install-pantry-chef 
+	kubectl rollout restart deployment pantry-chef-api -n default
+
+api-logs:
+	kubectl logs -f deployment/pantry-chef-api -n default
+
 # Uninstall API chart
 uninstall-api:
-	helm uninstall api --namespace default || true
+	helm uninstall pantry-chef-api --namespace default || true
+
+# =============================================================================
+# Agent Management
+# =============================================================================
+# Build and push recipe agent image
+
+
+# Deploy recipe agent to cluster
+install-recipe-agent-service: 
+	helm upgrade --install recipe-agent-service ./helm/charts/recipe-agent-service \
+		--set rabbitmq.url=amqp://user:rabbitmq@rabbitmq.$(INFRA_NAMESPACE).svc.cluster.local:5672 \
+		--namespace default
+
+redeploy-recipe-agent-service: install-recipe-agent-service
+		kubectl rollout restart deployment recipe-agent-service -n default
+	
+
+# Run recipe agent locally (for testing)
+run-recipe-agent-service-local:
+	RABBITMQ_URL=amqp://localhost:5672 python -m agentic_platform.services.recipes.main
+
+# Tail recipe agent logs
+recipe-agent-service-logs:
+	kubectl logs -f deployment/recipe-agent-service -n default
+
+# Uninstall recipe agent
+uninstall-recipe-agent-service:
+	helm uninstall recipe-agent-service --namespace default || true
+
+# Get RabbitMQ password
+get-rabbitmq-password:
+	@kubectl get secret --namespace $(INFRA_NAMESPACE) rabbitmq -o jsonpath="{.data.rabbitmq-password}" | base64 --decode | tr -d '\n'
 
 # =============================================================================
 # Database Operations
@@ -323,18 +329,18 @@ init: dev migrate-up
 api-forward:
 	kubectl port-forward svc/api 8000:8000 9000:9000
 
-# Port forward API, PostgreSQL, Redis, and RabbitMQ
 forward-all:
-	kubectl port-forward svc/api 8000:8000 9000:9000 & \
+	kubectl port-forward svc/pantry-chef-api 8000:8000 & \
 	kubectl port-forward -n infrastructure svc/postgres-postgresql 5432:5432 & \
-	kubectl port-forward -n infrastructure svc/redis-master 6379:6379 & \
-	kubectl port-forward -n infrastructure svc/rabbitmq 5672:5672 15672:15672
+	kubectl port-forward --insecure-skip-tls-verify -n infrastructure svc/rabbitmq 5672:5672 & \
+	kubectl port-forward --insecure-skip-tls-verify -n infrastructure svc/rabbitmq 15672:15672 & \
+	kubectl port-forward -n infrastructure svc/redis-master 6379:6379
 
 # =============================================================================
 # Deployment and Cleanup
 # =============================================================================
 # Deploy all components without seed data
-deploy-all: install-infra verify-infra install-istio deploy-api
+deploy-all: install-infra verify-infra 
 	@echo "\n=== Deployment Complete ==="
 	@echo "To verify infrastructure: make verify-infra"
 	@echo "To apply seed data: make verify-and-seed"
@@ -383,17 +389,15 @@ verify-persistence:
 	@echo "Verifying key exists..."
 	kubectl exec -n $(INFRA_NAMESPACE) redis-master-0 -- redis-cli -a $(shell make get-redis-password) GET persistence_test
 
-	@echo "\nTesting RabbitMQ persistence..."
-	@echo "Creating test queue..."
-	kubectl exec -n $(INFRA_NAMESPACE) rabbitmq-0 -- rabbitmqctl add_vhost test_vhost
-	@echo "Restarting RabbitMQ pod..."
-	kubectl delete pod -n $(INFRA_NAMESPACE) rabbitmq-0
-	@echo "Waiting for RabbitMQ to restart..."
-	sleep 20
-	@echo "Verifying vhost exists..."
-	kubectl exec -n $(INFRA_NAMESPACE) rabbitmq-0 -- rabbitmqctl list_vhosts | grep test_vhost
-
 	@echo "\nAll persistence tests completed!"
+
+# Verify RabbitMQ DNS resolution
+verify-rabbitmq-dns:
+	@echo "Verifying RabbitMQ DNS resolution..."
+	@kubectl run -it --rm --restart=Never dns-test \
+		--image=busybox:1.28 \
+		-- nslookup rabbitmq.infrastructure.svc.cluster.local
+
 
 
 

@@ -31,14 +31,19 @@ type JWTConfig struct {
 	Secret string `env:"JWT_SECRET,required"`
 }
 
+type RabbitMQConfig struct {
+	URL string `env:"RABBITMQ_URL,required"`
+}
+
 // Config holds all configuration for the application
 type Config struct {
-	HTTP    HTTPConfig
-	GRPC    GRPCConfig
-	DB      DBConfig
-	JWT     JWTConfig
-	Env     string
-	Version string
+	HTTP     HTTPConfig
+	GRPC     GRPCConfig
+	DB       DBConfig
+	JWT      JWTConfig
+	RabbitMQ RabbitMQConfig
+	Env      string
+	Version  string
 }
 
 func (c *DBConfig) GetURL() string {
@@ -67,6 +72,9 @@ func Load() (*Config, error) {
 		},
 		Env:     env.GetString("NODE_ENV", "development"),
 		Version: env.GetString("VERSION", "1.0.0"),
+		RabbitMQ: RabbitMQConfig{
+			URL: env.GetString("RABBITMQ_URL", "amqp://user:rabbitmq@rabbitmq.infrastructure.svc.cluster.local:5672/"),
+		},
 	}
 
 	return &cfg, nil

@@ -1,6 +1,10 @@
 package http_server
 
 import (
+	"context"
+	"encoding/json"
+	"fmt"
+	"net/http"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -15,15 +19,17 @@ import (
 	"github.com/karthik446/pantry_chef/api/internal/platform/token"
 	"github.com/karthik446/pantry_chef/api/internal/store"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
+	amqp "github.com/rabbitmq/amqp091-go"
 	"go.uber.org/zap"
 )
 
 type application struct {
-	config   *config.Config
-	store    *store.Storage
-	logger   *zap.SugaredLogger
-	tokenGen token.Generator
-	authMid  *middlewares.AuthMiddleware
+	config     *config.Config
+	store      *store.Storage
+	logger     *zap.SugaredLogger
+	tokenGen   token.Generator
+	authMid    *middlewares.AuthMiddleware
+	rabbitConn *amqp.Connection
 }
 
 func NewApplication(cfg *config.Config, store *store.Storage, logger *zap.SugaredLogger) (*application, error) {
@@ -32,14 +38,30 @@ func NewApplication(cfg *config.Config, store *store.Storage, logger *zap.Sugare
 		RefreshTokenDuration: 7 * 24 * time.Hour,
 		SigningKey:           []byte(cfg.JWT.Secret),
 	})
+	rabbitConn, err := amqp.Dial(cfg.RabbitMQ.URL)
+	if err != nil {
+		return nil, fmt.Errorf("failed to connect to RabbitMQ: %w", err)
+	}
+
+	// Add this log to check if the connection is established
+	logger.Infof("RabbitMQ connection established: %v", rabbitConn != nil)
 
 	return &application{
-		config:   cfg,
-		store:    store,
-		logger:   logger,
-		tokenGen: tokenGen,
-		authMid:  middlewares.NewAuthMiddleware(tokenGen),
+		config:     cfg,
+		store:      store,
+		logger:     logger,
+		tokenGen:   tokenGen,
+		authMid:    middlewares.NewAuthMiddleware(tokenGen),
+		rabbitConn: rabbitConn,
 	}, nil
+}
+
+func (app *application) GetRabbitConn() *amqp.Connection {
+	return app.rabbitConn
+}
+
+func (app *application) IsRabbitMQConnected() bool {
+	return app.rabbitConn != nil && !app.rabbitConn.IsClosed()
 }
 
 func (app *application) Mount() *chi.Mux {
@@ -101,6 +123,76 @@ func (app *application) Mount() *chi.Mux {
 			// Recipes routes
 			r.Route("/recipes", func(r chi.Router) {
 				r.Get("/", recipeHandler.List)
+
+				r.Get("/search", func(w http.ResponseWriter, r *http.Request) {
+					// Simple example - publish search query to RabbitMQ
+					query := r.URL.Query().Get("q")
+					if query == "" {
+						http.Error(w, "Missing search query", http.StatusBadRequest)
+						return
+					}
+
+					// Log the RabbitMQ URL
+					app.logger.Infof("RABBITMQ_URL: %s", app.config.RabbitMQ.URL)
+
+					ch, err := app.rabbitConn.Channel()
+					if err != nil {
+						app.logger.Error("Failed to open RabbitMQ channel", zap.Error(err))
+						http.Error(w, "Internal server error", http.StatusInternalServerError)
+						return
+					}
+					defer ch.Close()
+					app.logger.Info("Connected to RabbitMQ successfully")
+
+					// Declare the exchange
+					exchangeName := "recipe_searches"
+
+					workflowCommand := recipes.WorkflowCommand{
+						WorkflowType: "recipe_workflow_full",
+						WorkflowPayload: recipes.WorkflowPayload{
+							SearchQuery:     query,
+							ExcludedDomains: []string{},
+							NumberOfUrls:    5,
+						},
+					}
+					messageBodyBytes, err := json.Marshal(workflowCommand)
+					if err != nil {
+						app.logger.Error("Failed to marshal message body to JSON", zap.Error(err))
+						http.Error(w, "Internal server error", http.StatusInternalServerError)
+						return
+					}
+					messageBody := string(messageBodyBytes)
+
+					ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+					defer cancel()
+					routingKey := "recipe_searches"
+					app.logger.Infof("Publishing message: exchange=%s, routingKey=%s, body=%s", exchangeName, routingKey, messageBody)
+					err = ch.PublishWithContext(ctx,
+						exchangeName, // exchange
+						routingKey,   // routing key
+						false,        // mandatory
+						false,        // immediate
+						amqp.Publishing{
+							ContentType: "text/plain",
+							Body:        []byte(messageBody),
+						})
+					if err != nil {
+						app.logger.Error("Failed to publish message", zap.Error(err))
+						http.Error(w, "Internal server error", http.StatusInternalServerError)
+						return
+					}
+
+					if err := ch.Close(); err != nil {
+						app.logger.Error("Error closing channel", zap.Error(err))
+					}
+
+					app.logger.Info("Message published successfully")
+
+					app.logger.Info(" [x] Sent %s\n", messageBody)
+
+					w.WriteHeader(http.StatusAccepted)
+					w.Write([]byte("Search request received"))
+				})
 
 				// Admin only routes
 				r.Group(func(r chi.Router) {

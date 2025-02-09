@@ -1,0 +1,22 @@
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-pantry-chef-api-to-rabbitmq
+  namespace: default
+spec:
+  podSelector:
+    matchLabels:
+      app: pantry-chef-api
+  egress:
+  - to:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: infrastructure
+      podSelector:
+        matchLabels:
+          app.kubernetes.io/name: rabbitmq
+    ports:
+    - protocol: TCP
+      port: 5672
+  policyTypes:
+  - Egress

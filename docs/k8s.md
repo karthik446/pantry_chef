@@ -60,17 +60,8 @@ User is on a mac with M4 pro chip. always provide commands that are compatible w
    - Configure persistent volumes through values ✅
    - Use external-secrets operator chart for secrets ✅
 
-3. **Observability Stack** ✅
 
-   - Using New Relic for complete observability (metrics, logs, traces) ✅
-     - Kubernetes monitoring ✅
-     - Infrastructure metrics ✅
-     - Application performance monitoring ✅
-     - Log aggregation ✅
-     - Distributed tracing ✅
-     - Free tier with 100GB ingestion ✅
-
-4. **Service Mesh Implementation**
+4. **Service Mesh Implementation**  REMOVED 
 
    ```bash
    # Install Istio using Helm
@@ -242,3 +233,37 @@ This plan leverages k3d for local development while maintaining all the benefits
 - Efficient resource usage on M4 Mac
 
 The combination of k3d and Helm provides an optimal local development experience while ensuring production readiness.
+
+
+## Pivot to Kafka 
+### Phase 1: Local Development Environment (k3d)
+
+1. **Architecture Decision**
+   
+   We're explicitly choosing NOT to use a service mesh because:
+   - Services are independent but share infrastructure
+   - No cross-service communication needed
+   - Each service has its own:
+     - API endpoints
+     - Database (within shared PostgreSQL)
+     - Kafka topics (within shared Kafka cluster)
+   - New Relic handles our observability needs
+
+2. **Shared Infrastructure**
+
+   All services use single shared infrastructure:
+   ```bash
+   # Shared Infrastructure
+   kubectl create namespace infrastructure
+   helm upgrade --install kafka bitnami/kafka \
+     --namespace infrastructure \
+     --values helm/values/kafka-values.yaml
+   ```
+
+   Core Infrastructure:
+   - PostgreSQL: Single instance, multiple databases ✅
+   - Redis: Single instance, shared caching ✅
+   - Kafka: Single cluster, topic separation ⚠️
+   - New Relic: Unified observability ✅
+
+[Rest of existing k8s.md remains unchanged...]

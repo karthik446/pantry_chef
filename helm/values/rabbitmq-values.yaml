@@ -19,7 +19,23 @@ resources:
 metrics:
   enabled: true
 
-plugins: "rabbitmq_management rabbitmq_prometheus"
+extraPlugins: "rabbitmq_prometheus"
 
 service:
-  type: ClusterIP 
+  type: ClusterIP
+  ports:
+    amqp: 5672
+    manager: 15672
+    epmd: 4369
+    dist: 25672
+    metrics: 9419
+
+readinessProbe:
+  initialDelaySeconds: 20
+  timeoutSeconds: 10
+  periodSeconds: 30
+
+livenessProbe:
+  initialDelaySeconds: 60
+  timeoutSeconds: 20
+  periodSeconds: 45 

@@ -1,0 +1,66 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Chart.Name }}
+  labels:
+    app: {{ .Chart.Name }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      app: {{ .Chart.Name }}
+  template:
+    metadata:
+      labels:
+        app: {{ .Chart.Name }}
+    spec:
+      containers:
+        - name: {{ .Chart.Name }}
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          env:
+            - name: RABBITMQ_HOST
+              value: rabbitmq.infrastructure.svc.cluster.local
+            - name: RABBITMQ_PORT
+              value: "5672"
+            - name: RABBITMQ_USER
+              value: user
+            - name: RABBITMQ_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: rabbitmq
+                  key: rabbitmq-password
+            - name: RABBITMQ_IP
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.hostIP
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+          readinessProbe:
+            tcpSocket:
+              port: 5672
+              host: "{{ .Values.rabbitmq.ip }}"
+            initialDelaySeconds: 20
+            periodSeconds: 30
+          startupProbe:
+            tcpSocket:
+              port: 5672
+              host: "{{ .Values.rabbitmq.ip }}"
+            failureThreshold: 10
+            periodSeconds: 5
+          livenessProbe:
+            tcpSocket:
+              port: 5672
+              host: "{{ .Values.rabbitmq.ip }}"
+            initialDelaySeconds: 60
+            periodSeconds: 60
+      hostAliases:
+        - ip: "10.43.214.126"  # Replace with actual ClusterIP from step 1
+          hostnames:
+            - "rabbitmq.infrastructure.svc.cluster.local"
+      # hostAliases:
+      #   {{- if .Values.rabbitmq.ip }}
+      #   - ip: "{{ .Values.rabbitmq.ip }}"
+      #     hostnames:
+      #       - "rabbitmq.infrastructure.svc.cluster.local"
+      #   {{- end }} 

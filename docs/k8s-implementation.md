@@ -397,38 +397,19 @@ make k3d-stop
 
 # Complete rebuild of cluster
 
-# 1. Clean everything and delete the cluster
 
-make clean-all # Clean up API and Docker images
-make clean-infra # Clean up all infrastructure components
-make clean-istio # Clean up Istio components
-make clean-monitoring # Clean up monitoring components
-make k3d-delete # Delete the k3d cluster completely
+ # Full teardown sequence
+make clean-infra    # Clean all infrastructure components
+make clean-monitoring # Clean monitoring components
+make k3d-clean      # Remove cluster and associated resources
+docker system prune -af  # Clean any leftover Docker artifacts
 
-# 2. Create new cluster and setup Helm
-
-make k3d-create # Create new k3d cluster with registry
-make helm-init # Initialize Helm repositories
-
-# 3. Setup infrastructure
-
-make install-infra # Install PostgreSQL, Redis, RabbitMQ, and External Secrets
-make verify-infra # Verify infrastructure is running correctly
-make verify-persistence # Verify data persistence is working
-
-# 4. Setup monitoring
-
+# Rebuild from scratch
+make k3d-create     # Create fresh cluster
+make install-infra  # Initialize Helm repos Install core infrastructure (Postgres, Redis, Kafka)
 make install-monitoring # Install New Relic monitoring stack
+make install-api    # Deploy your API (if applicable)
 
-# 5. Setup service mesh
-
-make install-istio # Install complete Istio stack
-
-# 6. Deploy application
-
-make install-api # Build and push API image & Install API using Helm
-make setup-db # Setup database and run migrations
-
-# 7. Setup port forwarding for local access
-
-make forward-all # Port forward API and PostgreSQL services
+# Verify cluster status
+kubectl get pods -A  # Check all components are running
+make forward-all     # Set up port forwarding for local access
