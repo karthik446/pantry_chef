@@ -61,20 +61,20 @@ To make it even more actionable, let's format it as a markdown checklist that yo
 
 **3. Basic Logging Setup (User Stories 4.1 - 4.2):**
 
-*   [x ] **Task 3.1: Configure Basic Logging (Story 4.1)**
+*   [x] **Task 3.1: Configure Basic Logging (Story 4.1)**
     *   [x] Initialize `logging` library in `RecipeAgentService`.
     *   [x] Set up basic console logging with INFO level.
     *   [x] Include timestamps in log messages.
     *   *Estimated Effort: 0.5 days*
 
-*   [ ] **Task 3.2: Implement Workflow Event Logging (Story 4.2)**
-    *   [ ] Add logging statements for workflow initiation, step start/end, and errors.
-    *   [ ] Include `workflow_id` in all relevant log messages.
+*   [x] **Task 3.2: Implement Workflow Event Logging (Story 4.2)**
+    *   [x] Add logging statements for workflow initiation, step start/end, and errors.
+    *   [x] Include `workflow_id` in all relevant log messages.
     *   *Estimated Effort: 0.5 days*
 
 **Sprint Goal Review & Testing:**
 
-*   [x ] **Task 4.1: End-to-End Testing of Workflow Initiation and `recipe_search` Step (Story 6 from previous set)**
+*   [x] **Task 4.1: End-to-End Testing of Workflow Initiation and `recipe_search` Step (Story 6 from previous set)**
     *   [x] Deploy updated `RecipeAgentService` to Kubernetes.
     *   [x] Manually publish a `workflow_initiate` message to the `workflow_commands` queue.
     *   [x] Verify in `RecipeAgentService` logs: Message processing, workflow instance creation, `recipe_search` step execution, state updates.
