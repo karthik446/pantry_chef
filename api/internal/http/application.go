@@ -144,9 +144,6 @@ func (app *application) Mount() *chi.Mux {
 					defer ch.Close()
 					app.logger.Info("Connected to RabbitMQ successfully")
 
-					// Declare the exchange
-					exchangeName := "recipe_searches"
-
 					workflowCommand := recipes.WorkflowCommand{
 						WorkflowType: "recipe_workflow_full",
 						WorkflowPayload: recipes.WorkflowPayload{
@@ -165,15 +162,15 @@ func (app *application) Mount() *chi.Mux {
 
 					ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 					defer cancel()
-					routingKey := "recipe_searches"
-					app.logger.Infof("Publishing message: exchange=%s, routingKey=%s, body=%s", exchangeName, routingKey, messageBody)
+					routingKey := "workflow_messages"
+					app.logger.Infof("Publishing message: exchange=%s, routingKey=%s, body=%s", "", routingKey, messageBody)
 					err = ch.PublishWithContext(ctx,
-						exchangeName, // exchange
-						routingKey,   // routing key
-						false,        // mandatory
-						false,        // immediate
+						"",         // exchange
+						routingKey, // routing key
+						false,      // mandatory
+						false,      // immediate
 						amqp.Publishing{
-							ContentType: "text/plain",
+							ContentType: "application/json",
 							Body:        []byte(messageBody),
 						})
 					if err != nil {

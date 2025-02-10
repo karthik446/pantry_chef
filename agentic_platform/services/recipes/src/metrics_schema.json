@@ -1,0 +1,31 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "MetricsEvent",
+  "description": "Schema for generic metrics events.",
+  "type": "object",
+  "properties": {
+    "event_type": {
+      "type": "string",
+      "description": "Type of event being measured (e.g., 'recipe_search.duration', 'api.request.latency')."
+    },
+    "duration": {
+      "type": "number",
+      "description": "Duration of the event in seconds (if applicable)."
+    },
+    "count": {
+      "type": "integer",
+      "description": "Count of the event (if applicable)."
+    },
+    "metadata": {
+      "type": "object",
+      "description": "Additional metadata associated with the event (key-value pairs).",
+      "additionalProperties": true
+    },
+    "timestamp": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Timestamp of when the event occurred (ISO 8601 format)."
+    }
+  },
+  "required": ["event_type", "timestamp"]
+}

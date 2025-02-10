@@ -4,62 +4,63 @@
 
 ** Known Issues: **
 
-*  The RabbitMQ consumer and producer are working.. but only for recipe_searches queue.  
+*   The RabbitMQ consumer and producer are working.. but only for recipe_searches queue.
 
 ## Diagnosing RabbitMQ `workflow_commands` Queue Issue
 
-**Known Issue:**  While RabbitMQ is set up with `workflow_commands`, `recipe_searches`, and `workflow_queue` queues, only `recipe_searches` appears to be functioning correctly. Messages published to `workflow_commands` are not being processed as expected by the `RecipeAgentService`.
+**Known Issue:** While RabbitMQ is set up with `workflow_commands`, `recipe_searches`, and `workflow_queue` queues, only `recipe_searches` appears to be functioning correctly. Messages published to `workflow_commands` are not being processed as expected by the `RecipeAgentService`.
 
-**Potential Causes & Troubleshooting Steps:**
-
-This issue could stem from problems in several areas:
-
-**1. Consumer Configuration in `RecipeAgentService`:**
-
-*   **Cause:** The `RecipeAgentService` might not be correctly configured to consume from the `workflow_commands` queue.  It might be listening to the wrong queue name, using incorrect connection parameters, or the consumer logic itself might have errors.
-    *   **Checks:**
-        *   **Verify Queue Name:** Double-check the queue name in the `workflow_consumer.py` code (where the consumer is set up) against the actual queue name in RabbitMQ management UI (`workflow_commands`). Ensure there are no typos or case mismatches.
-        *   **Connection Details:** Confirm that the RabbitMQ connection parameters (host, port, username, password, virtual host) in `workflow_consumer.py` are correct and match the RabbitMQ setup. Environment variables used for these parameters should be correctly set in the Kubernetes deployment.
-        *   **Consumer Logic Errors:** Review the consumer callback function in `workflow_consumer.py` (specifically the `process_workflow_command` function). Look for any logical errors, exceptions that might be silently caught, or issues preventing message acknowledgement.  Ensure proper logging is in place within the callback to track message processing.
-        *   **Multiple Consumers:**  Accidentally running multiple instances of the consumer code that are competing for messages or misconfigured. Ensure only one consumer instance is expected to be running and processing `workflow_commands`.
-
-**2. Producer Configuration (Message Publishing):**
-
-*   **Cause:** Messages intended for `workflow_commands` might be incorrectly published to a different exchange or routing key, or not published at all.
-    *   **Checks:**
-        *   **Publishing Code Review:** Examine the code that publishes messages intended for `workflow_commands`. Verify the exchange name, routing key (if applicable), and queue name used during publishing are indeed targeting the `workflow_commands` queue.
-        *   **Message Format:** Ensure the message payload being published to `workflow_commands` conforms to the expected schema (`workflow_initiate` message schema defined in `docs/dev/message-schemas.md`). Validation errors on the consumer side could lead to messages being rejected or ignored.
-        *   **Manual Publishing Test:** Use the RabbitMQ management UI or `rabbitmqadmin` CLI tool to manually publish a test message directly to the `workflow_commands` queue. This bypasses the producer code and isolates the consumer side for testing. Observe if the `RecipeAgentService` consumer processes this manually published message.
-
-**3. RabbitMQ Queue Configuration:**
-
-*   **Cause:**  While the queue configurations seem similar (quorum, durability), there might be subtle differences or misconfigurations affecting `workflow_commands`.
-    *   **Checks:**
-        *   **Queue Properties Comparison:**  Carefully compare all properties of `workflow_commands` and `recipe_searches` queues in the RabbitMQ management UI. Look for any discrepancies in permissions, policies, or other settings beyond the listed `x-queue-type`, `x-max-length`, etc.
-        *   **Queue Bindings (Exchanges):** Verify if `workflow_commands` queue is correctly bound to the expected exchange.  If direct exchange is used, ensure the routing key matches the queue name.
-        *   **Queue State:** Check the RabbitMQ management UI for the `workflow_commands` queue's state. Is it idle? Are there messages piling up and unacknowledged? Are there any error indicators associated with the queue?
-
-**4. Network Connectivity & Firewall:**
-
-*   **Cause:** Network issues or firewall rules might be preventing communication between the `RecipeAgentService` and RabbitMQ specifically on ports or protocols used for `workflow_commands` queue interactions. (Less likely if `recipe_searches` is working, but worth a quick check).
-    *   **Checks:**
-        *   **Kubernetes Network Policies:** Review Kubernetes network policies to ensure they are not inadvertently blocking traffic between the `RecipeAgentService` pod and the RabbitMQ service on the relevant ports.
-        *   **Firewall Rules:** If firewalls are in place outside Kubernetes, verify rules allow communication between the Recipe Agent Service and RabbitMQ on the necessary ports.
+Fixed it by adding a new `workflow_orchestrator.py` file to the `services/recipes` directory and also for every new deploy the port forwarding should be re-run.
 
 
-**Sprint 2 Context:**
+**tech debt sprint**
 
-This issue directly impacts Sprint 2, as `workflow_commands` queue is intended to be the entry point for initiating the `recipe_workflow_full` workflow, including triggering the recipe scraping and saving steps planned for this sprint. Resolving this queue issue is a prerequisite for making progress on core Sprint 2 tasks.
+The focus of this tech debt sprint is to implement an asynchronous consumer using `aio-pika` with base classes for `WorkflowCommandConsumer` (formerly `recipe_consumer`) and `MetricsConsumer`, and ensure both can connect to their respective queues (`recipe_searches` and `metrics_queue`). This will also help us resolve the known issue of only one queue working.
 
-By systematically checking these potential causes, you should be able to pinpoint the reason why the `workflow_commands` queue is not functioning as expected and implement the necessary fix. Start with the consumer configuration and message publishing aspects, as these are often the most common sources of such issues.
+*   [x] **Task 1: Implement Asynchronous `BaseConsumer` (New File `consumer.py`):**
+    *   [x] Create a new file `agentic_platform/services/recipes/src/consumer.py`.
+    *   [x] Implement the `BaseConsumer` class with asynchronous connection logic using `aio-pika`.
+    *   [x] The `BaseConsumer` should:
+        *   [x] Accept a `queue_name` in its constructor.
+        *   [x] Establish an asynchronous connection to RabbitMQ using `aio_pika.connect_robust`.
+        *   [x] Declare the queue using the provided `queue_name`.
+        *   [x] Define abstract methods for `process_message` and error handling.
+    *   Estimated Effort: 1.5 days
 
+*   [ ] **Task 2: Implement `WorkflowCommandConsumer`:**
+    *   [x] Create a `WorkflowCommandConsumer` class that inherits from `BaseConsumer`.
+    *   [x] The `WorkflowCommandConsumer` should:
+        *   [x] Call the `BaseConsumer` constructor with the `recipe_searches` queue name (obtained from the environment variable `WORKFLOW_COMMANDS_QUEUE_NAME`).
+        *   [x] Implement the `process_message` method to handle workflow commands (as it currently does).
+        *   [x] Implement the error handling logic.
+    *   Estimated Effort: 1 day
 
+*   [x] **Task 3: Implement `MetricsConsumer`:**
+    *   [x] Create a `MetricsConsumer` class that inherits from `BaseConsumer`.
+    *   [x] The `MetricsConsumer` should:
+        *   [x] Call the `BaseConsumer` constructor with the `metrics_queue` name (obtained from the environment variable `METRICS_QUEUE_NAME`).
+        *   [x] Implement the `process_message` method to handle metrics messages (logging, etc.).
+        *   [x] Implement the error handling logic.
+    *   Estimated Effort: 1 day
+
+*   [x] **Task 4: Update `workflow_consumer.py`:**
+    *   [x] Modify `workflow_consumer.py` to:
+        *   [x] Import the `BaseConsumer`, `WorkflowCommandConsumer`, and `MetricsConsumer` classes.
+        *   [x] Instantiate both `WorkflowCommandConsumer` and `MetricsConsumer`.
+        *   [x] Start both consumers in an `asyncio` event loop.
+    *   Estimated Effort: 0.5 days
+
+*   [x] **Task 5: Test Deployment and Multiple Queue Connections:**
+    *   [x] Deploy the updated service to a test environment.
+    *   [x] Verify that both `WorkflowCommandConsumer` and `MetricsConsumer` connect to their respective queues.
+    *   [x] Publish test messages to both queues and ensure they are processed correctly.
+    *   Estimated Effort: 0.5 days
 
 **1. Recipe Scraping Agent Implementation:**
 
 *   [ ] **Task 1.1: Create recipe_scraper.py (New File)**
 *   [ ] Create a new file agentic_platform/services/recipes/src/recipe_scraper.py.
-*   [ ] Define a function scrape_recipe(url: str) -> dict that takes a URL and returns a dictionary containing the scraped recipe data (or an error indication). This function will be largely based on the existing scrape_recipe function in recipe_agent_old.py, but adapted for asynchronous operation and improved error handling. Except that we will try to use an ai model to scrape the recipe if the code scraper fails. 
+*   [ ] Define a function scrape_recipe(url: str) -> dict that takes a URL and returns a dictionary containing the scraped recipe data (or an error indication). This function will be largely based on the existing scrape_recipe function in recipe_agent_old.py, but adapted for asynchronous operation and improved error handling. Except that we will try to use an ai model to scrape the recipe if the code scraper fails.
 *   [ ] Implement robust error handling (timeouts, request exceptions, parsing errors).
 *   [ ] Return a dictionary in the format expected by the API (matching dtos.CreateRecipeDTO in handler.go). Include error key if scraping fails.
 *   Estimated Effort: 1.5 days
@@ -102,28 +103,47 @@ By systematically checking these potential causes, you should be able to pinpoin
 *   [ ] Handle API response (success/failure) and log appropriately, including authentication-related errors.
 *   Estimated Effort: 1 day
 
-**3. Testing and Refinement:**
+**3. Consumer Refactoring and Queue Handling:**
 
-*   [ ] **Task 3.1: Unit Tests for recipe_scraper.py**
+*   [ ] **Task 3.1: Refactor Consumer with BaseConsumer (New File consumer.py)**
+*   [ ] Create a new file agentic_platform/services/recipes/src/consumer.py.
+*   [ ] Implement the BaseConsumer class with asynchronous connection using aio-pika.
+*   [ ] Ensure the consumer creates queues programmatically based on environment variables.
+*   Estimated Effort: 1.5 days
+
+*   [ ] **Task 3.2: Implement WorkflowCommandConsumer and MetricsConsumer**
+*   [ ] Implement WorkflowCommandConsumer and MetricsConsumer, inheriting from BaseConsumer.
+*   [ ] Adapt message processing logic for each consumer.
+*   Estimated Effort: 1 day
+
+**4. Testing and Refinement:**
+
+*   [ ] **Task 4.1: Unit Tests for recipe_scraper.py**
 *   [ ] Create tests/test_recipe_scraper.py.
 *   [ ] Write unit tests for scrape_recipe, find_print_link, clean_instructions, parse_ingredient, and clean_text.
 *   [ ] Use mock objects/responses to simulate different scenarios (successful scrapes, various website structures, errors).
 *   Estimated Effort: 1.5 days
 
-*   [ ] **Task 3.2: Unit Tests for auth_client.py**
+*   [ ] **Task 4.2: Unit Tests for auth_client.py**
 *   [ ] Create tests/test_auth_client.py.
 *   [ ] Write unit tests for the abstract authentication class and the concrete APIKeyAuthClient, focusing on token retrieval, caching, and refresh logic.
 *   [ ] Mock Redis interactions for testing.
 *   Estimated Effort: 0.5 days
 
-*   [ ] **Task 3.3: Refactor search_agent.py**
+*   [ ] **Task 4.3: Refactor search_agent.py**
 *   [ ] Remove the hardcoded recipe website base URLs.
 *   [ ] Ensure the search query construction with excluded domains is robust.
 *   Estimated Effort: 0.5 days
 
+*   [ ] **Task 4.4: Test Deployment and Multiple Queue Connections**
+*   [ ] Deploy the updated service to a test environment.
+*   [ ] Verify that both WorkflowCommandConsumer and MetricsConsumer connect to their respective queues.
+*   [ ] Publish test messages to both queues and ensure they are processed correctly.
+*   Estimated Effort: 0.5 days
+
 **Sprint Goal Review & Testing:**
 
-*   [ ] **Task 4.1: End-to-End Testing**
+*   [ ] **Task 5.1: End-to-End Testing**
 *   [ ] Deploy the updated service.
 *   [ ] Manually trigger workflows and verify:
     *   Recipe search results are retrieved.
@@ -139,7 +159,7 @@ By systematically checking these potential causes, you should be able to pinpoin
 *   **Day 1:** Task 1.1, 2.1
 *   **Day 2:** Task 1.2, 2.2
 *   **Day 3:** Task 1.3, 2.3
-*   **Day 4:** Task 1.4, 1.5
-*   **Day 5:** Task 3.1
-*   **Day 6:** Task 3.2, 3.3
-*   **Day 7:** Task 4.1, Buffer, bug fixing, documentation, sprint review.
+*   **Day 4:** Task 1.4, 3.1
+*   **Day 5:** Task 3.2, 4.1
+*   **Day 6:** Task 4.2, 4.3, 4.4
+*   **Day 7:** Task 5.1, Buffer, bug fixing, documentation, sprint review.

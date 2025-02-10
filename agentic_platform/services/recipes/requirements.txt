@@ -8,3 +8,11 @@ jsonschema>=4.19.0
 
 pytest>=7.4.3
 pytest-mock>=3.14.0
+
+pydantic>=2.5.3
+datamodel-code-generator>=0.27.2
+
+# Optional dependencies
+# pydantic-mypy>=2.1.0
+# pydantic-core>=2.10.0
+# pydantic-core-extensions>=0.1.0

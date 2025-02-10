@@ -1,8 +1,9 @@
+import asyncio
 import logging
 import os
 import sys
 
-from workflow_consumer import start_workflow_command_consumer
+from workflow_consumer import main as workflow_consumer_main
 
 PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 sys.path.insert(0, PROJECT_ROOT)
@@ -16,8 +17,8 @@ def main():
     """Main function to start the RecipeAgentService."""
     logging.info("Starting RecipeAgentService...")
 
-    # Start the workflow command consumer
-    start_workflow_command_consumer()
+    # Start the workflow command consumer and metrics consumer
+    asyncio.run(workflow_consumer_main())
 
     logging.info("RecipeAgentService started successfully.")
 
