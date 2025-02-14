@@ -12,8 +12,9 @@ RUN apt-get update && apt-get install -y \
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy source code
+# Copy source code and env file
 COPY src/ ./src/
+COPY .env .
 
 # Environment
 ENV RABBITMQ_HOST=rabbitmq

@@ -58,30 +58,39 @@ The focus of this tech debt sprint is to implement an asynchronous consumer usin
 
 **1. Recipe Scraping Agent Implementation:**
 
-*   [ ] **Task 1.1: Create recipe_scraper.py (New File)**
-*   [ ] Create a new file agentic_platform/services/recipes/src/recipe_scraper.py.
-*   [ ] Define a function scrape_recipe(url: str) -> dict that takes a URL and returns a dictionary containing the scraped recipe data (or an error indication). This function will be largely based on the existing scrape_recipe function in recipe_agent_old.py, but adapted for asynchronous operation and improved error handling. Except that we will try to use an ai model to scrape the recipe if the code scraper fails.
-*   [ ] Implement robust error handling (timeouts, request exceptions, parsing errors).
-*   [ ] Return a dictionary in the format expected by the API (matching dtos.CreateRecipeDTO in handler.go). Include error key if scraping fails.
-*   Estimated Effort: 1.5 days
+*   [ ] **Task 1.1: Define Scraping Event Types**
+    *   [x] create class RecipeMetricsEventType(Enum):
+    *   [ ] Define metadata structure for each event type
+    *   [ ] Add logging for each event type
+    *   Estimated Effort: 0.5 days
 
-*   [ ] **Task 1.2: Implement Helper Functions in recipe_scraper.py**
-*   [ ] Port the helper functions from recipe_agent_old.py to recipe_scraper.py: find_print_link, clean_instructions, parse_ingredient, clean_text.
-*   [ ] Adapt these functions as needed for the new scraper.
-*   Estimated Effort: 1 day
+*   [ ] **Task 1.2: Enhance Library Scraping Method**
+    *   [ ] Wrap recipe-scrapers library with metrics collection
+    *   [ ] Implement Recipe/MetricsEvents tuple return
+    *   [ ] Add duration tracking
+    *   [ ] Add detailed failure metadata
+    *   Estimated Effort: 1 day
 
-*   [ ] **Task 1.3: Implement Asynchronous Scraping in workflow_consumer.py**
-*   [ ] Create a new function scrape_recipes_parallel(urls: list[str]) -> list[dict] in workflow_consumer.py.
-*   [ ] Use asyncio.gather to concurrently scrape multiple URLs using scrape_recipe.
-*   [ ] Handle errors from individual scrapes gracefully (e.g., log the error and continue with other URLs).
-*   [ ] Return a list of dictionaries, each representing a scraped recipe (or containing an error).
-*   Estimated Effort: 1 day
+*   [ ] **Task 1.3: Enhance Custom Scraping Method**
+    *   [ ] Structure custom scraping with metrics collection
+    *   [ ] Implement Recipe/MetricsEvents tuple return
+    *   [ ] Track parsing attempts in metadata
+    *   [ ] Add failure categorization
+    *   Estimated Effort: 1 day
 
-*   [ ] **Task 1.4: Integrate Scraper with Workflow in workflow_consumer.py**
-*   [ ] Modify _execute_recipe_search_step to use scrape_recipes_parallel instead of calling search_recipes directly.
-*   [ ] After getting the list of URLs, call scrape_recipes_parallel to scrape the recipes.
-*   [ ] Process the results, handling both successful scrapes and errors.
-*   Estimated Effort: 0.5 days
+*   [ ] **Task 1.4: Implement AI Scraping Method**
+    *   [ ] Structure AI scraping with metrics collection
+    *   [ ] Track token usage in metrics
+    *   [ ] Add timeout handling
+    *   [ ] Implement proper validation
+    *   Estimated Effort: 1 day
+
+*   [ ] **Task 1.5: Implement Sequential Scraping Logic**
+    *   [ ] Implement priority-based method execution
+    *   [ ] Collect and combine metrics from all attempts
+    *   [ ] Add comprehensive logging
+    *   [ ] Test parallel processing scenarios
+    *   Estimated Effort: 1 day
 
 **2. Authentication and API Interaction with Redis Caching:**
 

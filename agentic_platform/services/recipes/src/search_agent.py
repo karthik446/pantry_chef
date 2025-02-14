@@ -51,7 +51,16 @@ def search_recipes(
             search_results, str
         ):  # Check if search results are valid
             results_list = search_results.split("\n")
-            recipe_urls = results_list[:num_urls]  # Limit the number of URLs
+            # Filter out non-URL lines and headers
+            recipe_urls = [
+                url
+                for url in results_list
+                if url
+                and not url.startswith("#")
+                and not url.isspace()
+                and ("http://" in url or "https://" in url)
+            ]
+            recipe_urls = recipe_urls[:num_urls]  # Limit to requested number of URLs
 
         logging.info(f"Found recipe URLs: {recipe_urls}")
         return recipe_urls

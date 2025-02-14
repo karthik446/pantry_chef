@@ -7,7 +7,7 @@ import aio_pika
 from pydantic import ValidationError
 
 from consumer import BaseConsumer
-from model import MetricsEvent
+from event_models import MetricsEvent
 
 
 class InvalidMessageError(Exception):

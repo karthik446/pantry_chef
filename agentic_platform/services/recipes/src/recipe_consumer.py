@@ -8,8 +8,7 @@ from pydantic import ValidationError
 
 from consumer import BaseConsumer
 from workflow_orchestrator import WorkflowOrchestrator
-from model import WorkflowInitiateMessage
-import uuid
+from event_models import WorkflowInitiateMessage
 
 
 class InvalidMessageError(Exception):

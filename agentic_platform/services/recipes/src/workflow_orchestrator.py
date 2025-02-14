@@ -6,10 +6,15 @@ import pika
 import os
 import json
 from search_agent import search_recipes
-from model import WorkflowInitiateMessage, WorkflowType, WorkflowPayload
-from pydantic import ValidationError
-import asyncio
+from event_models import WorkflowType, WorkflowPayload
+from recipe_scraper_step import RecipeScraperWorkflowStep
 import aio_pika
+import google.generativeai as genai
+from dotenv import load_dotenv
+
+load_dotenv()
+genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
+model = genai.GenerativeModel("gemini-2.0-flash", generation_config={"temperature": 0})
 
 
 class WorkflowOrchestrator:
@@ -34,6 +39,8 @@ class WorkflowOrchestrator:
         # Initialize RabbitMQ connection asynchronously
         self.connection = None
         self.channel = None
+
+        self.scraperStep = RecipeScraperWorkflowStep(model)
 
     async def _publish_to_metrics_queue(self, message_json):
         """
@@ -109,7 +116,9 @@ class WorkflowOrchestrator:
                 await self.connection.close()
             raise
 
-    async def initiate_workflow(self, workflow_type, workflow_payload):
+    async def initiate_workflow(
+        self, workflow_type: WorkflowType, workflow_payload: WorkflowPayload
+    ):
         """
         Initiates a new workflow instance.
         """
@@ -172,9 +181,6 @@ class WorkflowOrchestrator:
             search_query = workflow_instance["payload"].get("search_query")
             excluded_domains = workflow_instance["payload"].get("excluded_domains", [])
             number_of_urls = workflow_instance["payload"].get("number_of_urls", 10)
-            logging.info(
-                f"Recipe search: workflow_id={workflow_id}, query={search_query}, excluded_domains={excluded_domains}, num_urls={number_of_urls}"
-            )
             recipe_urls = search_recipes(search_query, excluded_domains, number_of_urls)
             workflow_instance["context_data"]["recipe_search_results"] = recipe_urls
             workflow_instance["current_step"] = "recipe_search"
@@ -184,12 +190,44 @@ class WorkflowOrchestrator:
                 f"Recipe search completed: workflow_id={workflow_id}, found {len(recipe_urls)} recipes"
             )
 
-            # Step 2: Placeholder for Recipe Scraping (Not yet implemented)
-            # ... (Scraping logic would go here in the future) ...
+            # Step 2: Recipe Scraping
             workflow_instance["current_step"] = "recipe_scraping"
-            workflow_instance["status"] = "recipe_scraping_pending"
+            workflow_instance["status"] = "recipe_scraping_in_progress"
             workflow_instance["last_updated_timestamp"] = datetime.now().isoformat()
-            logging.info(f"Recipe scraping step pending: workflow_id={workflow_id}")
+            logging.info(
+                f"Starting parallel recipe scraping: workflow_id={workflow_id}"
+            )
+
+            scraped_recipes = await self.scraperStep.scrape_recipes(recipe_urls)
+            workflow_instance["context_data"]["scraped_recipes"] = scraped_recipes
+            workflow_instance["status"] = "recipe_scraping_completed"
+            workflow_instance["last_updated_timestamp"] = datetime.now().isoformat()
+
+            # Structured logging for scraped recipes
+            logging.info(
+                f"Recipe scraping completed: workflow_id={workflow_id}, total recipes attempted={len(scraped_recipes)}"
+            )
+
+            successful_recipes = 0
+            for i, (recipe, metrics) in enumerate(scraped_recipes, 1):
+                if recipe:
+                    successful_recipes += 1
+                    logging.info(
+                        f"Recipe {i} (Success) - "
+                        f"Title: {recipe.title}, "
+                        f"URL: {recipe.source_url}, "
+                        f"Ingredients: {len(recipe.ingredients)}"
+                    )
+                else:
+                    logging.error(
+                        f"Recipe {i} (Failed) - "
+                        f"URL: {metrics[0].metadata.get('url', 'Unknown URL')}, "
+                        f"Error: {metrics[0].metadata.get('error', 'Unknown error')}"
+                    )
+
+            logging.info(
+                f"Successfully scraped {successful_recipes} out of {len(scraped_recipes)} recipes"
+            )
 
             # Step 3: Placeholder for Saving Recipes to API (Not yet implemented)
             # ... (API saving logic would go here in the future) ...
