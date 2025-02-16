@@ -31,12 +31,6 @@ type loginRequest struct {
 type refreshRequest struct {
 	RefreshToken string `json:"refresh_token"`
 }
-type contextKey string
-
-const (
-	contextKeyUserAgent contextKey = "user_agent"
-	contextKeyClientIP  contextKey = "client_ip"
-)
 
 // Define interfaces for what AuthService needs
 
@@ -45,3 +39,14 @@ type LoginResponse struct {
 	RefreshToken string    `json:"refresh_token"`
 	ExpiresAt    time.Time `json:"expires_at"`
 }
+
+type contextKey string
+
+const (
+	ContextKeyUserID         contextKey = "userID"
+	ContextKeyUserRole       contextKey = "userRole"
+	ContextKeyIsService      contextKey = "isService"
+	ContextKeyServiceAccount contextKey = "serviceAccount"
+	ContextKeyUserAgent      contextKey = "userAgent"
+	ContextKeyClientIP       contextKey = "clientIP"
+)

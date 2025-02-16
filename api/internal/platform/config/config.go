@@ -18,7 +18,7 @@ type GRPCConfig struct {
 
 // DBConfig holds database configuration
 type DBConfig struct {
-	Host         string `env:"DB_HOST" envDefault:"postgres-postgresql.infrastructure"`
+	Host         string `env:"DB_HOST" envDefault:"postgres-postgresql.infrastructure.svc.cluster.local"`
 	Port         string `env:"DB_PORT" envDefault:"5432"`
 	User         string `env:"DB_USER" envDefault:"postgres"`
 	Password     string `env:"DB_PASSWORD,required"`
@@ -60,7 +60,7 @@ func Load() (*Config, error) {
 			Port: env.GetString("GRPC_PORT", "9000"),
 		},
 		DB: DBConfig{
-			Host:         env.GetString("DB_HOST", "postgres-postgresql.infrastructure"),
+			Host:         env.GetString("DB_HOST", "postgres-postgresql.infrastructure.svc.cluster.local"),
 			Port:         env.GetString("DB_PORT", "5432"),
 			User:         env.GetString("DB_USER", "postgres"),
 			Password:     env.GetString("DB_PASSWORD", ""),

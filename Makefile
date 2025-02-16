@@ -1,4 +1,4 @@
-.PHONY: dev migrate-up migrate-down seed db-reset down build run test clean k3d-create k3d-delete k3d-start k3d-stop helm-init k3d-clean helm-setup create-infra-ns install-postgres uninstall-postgres get-postgres-password install-infra install-redis uninstall-redis get-redis-password create-monitoring-ns install-newrelic uninstall-newrelic install-observability  build-api install-api uninstall-api create-db k8s-migrate clean-images deploy-all clean-all deploy-seed api-forward forward-all verify-rabbitmq-dns
+.PHONY: dev migrate-up migrate-down seed db-reset down build run test clean k3d-create k3d-delete k3d-start k3d-stop helm-init k3d-clean helm-setup create-infra-ns install-postgres uninstall-postgres get-postgres-password install-infra install-redis uninstall-redis get-redis-password create-monitoring-ns install-newrelic uninstall-newrelic install-observability  build-api install-api uninstall-api create-db k8s-migrate clean-images deploy-all clean-all deploy-seed api-forward forward-all verify-rabbitmq-dns create-pantry-chef delete-pantry-chef
 
 # =============================================================================
 # Base Variables
@@ -239,12 +239,18 @@ uninstall-api:
 
 
 # Deploy recipe agent to cluster
-install-recipe-agent-service: 
+install-recipe-agent-service: build-recipe-agent-service
 	helm upgrade --install recipe-agent-service ./helm/charts/recipe-agent-service \
 		--set rabbitmq.url=amqp://user:rabbitmq@rabbitmq.$(INFRA_NAMESPACE).svc.cluster.local:5672 \
 		--namespace default
 
-redeploy-recipe-agent-service: install-recipe-agent-service
+build-recipe-agent-service:
+	cd agentic_platform/services/recipes && \
+	docker build --no-cache -t recipe-agent-service . && \
+	docker tag recipe-agent-service:latest kar446/recipe-agent-service:v1.0.0 && \
+	docker push kar446/recipe-agent-service:v1.0.0
+
+redeploy-as: install-recipe-agent-service
 		kubectl rollout restart deployment recipe-agent-service -n default
 	
 
@@ -253,7 +259,7 @@ run-recipe-agent-service-local:
 	RABBITMQ_URL=amqp://localhost:5672 python -m agentic_platform.services.recipes.main
 
 # Tail recipe agent logs
-recipe-agent-service-logs:
+as-logs:
 	kubectl logs -f deployment/recipe-agent-service -n default
 
 # Uninstall recipe agent
@@ -397,6 +403,25 @@ verify-rabbitmq-dns:
 	@kubectl run -it --rm --restart=Never dns-test \
 		--image=busybox:1.28 \
 		-- nslookup rabbitmq.infrastructure.svc.cluster.local
+
+# =============================================================================
+# Production Deployment
+# =============================================================================
+# Create complete Pantry Chef deployment
+create-pantry-chef: k3d-create helm-init create-infra-ns install-infra verify-infra create-monitoring-ns install-monitoring install-pantry-chef install-recipe-agent-service create-workflow-queue
+	@echo "\n=== Pantry Chef Deployment Complete ==="
+	@echo "To verify infrastructure: make verify-infra"
+	@echo "To get credentials:"
+	@echo "  PostgreSQL: make get-postgres-password"
+	@echo "  Redis: make get-redis-password"
+	@echo "  RabbitMQ: make get-rabbitmq-password"
+	@echo "To forward ports: make forward-all"
+
+# Delete complete Pantry Chef deployment
+delete-pantry-chef: uninstall-pantry-chef uninstall-recipe-agent-service clean-monitoring clean-infra k3d-delete clean-images
+	@echo "\n=== Pantry Chef Deletion Complete ==="
+	@echo "All components have been removed"
+	@echo "To completely reset, you may also want to run: docker system prune -a"
 
 
 

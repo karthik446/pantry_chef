@@ -14,6 +14,7 @@ spec:
       labels:
         app: pantry-chef-api
     spec:
+      serviceAccountName: pantry-chef-api
       containers:
         - name: api
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
@@ -44,5 +45,30 @@ spec:
               value: "production"
             - name: RABBITMQ_URL
               value: {{ .Values.rabbitmq.url | quote }}
+            - name: K8S_AUTH_ENABLED
+              value: "true"
+            - name: K8S_API_URL
+              value: "https://kubernetes.default.svc.cluster.local"
+            - name: ALLOWED_SERVICE_ACCOUNT
+              value: "recipe-agent-service"
+            - name: ALLOWED_NAMESPACE
+              value: "default"
           resources:
-            {{- toYaml .Values.resources | nindent 12 }} 
+            {{- toYaml .Values.resources | nindent 12 }}
+          volumeMounts:
+            - name: k8s-certs
+              mountPath: "/var/run/secrets/kubernetes.io/serviceaccount"
+              readOnly: true
+      volumes:
+        - name: k8s-certs
+          projected:
+            sources:
+              - serviceAccountToken:
+                  path: token
+                  expirationSeconds: 3600
+                  audience: https://kubernetes.default.svc.cluster.local
+              - configMap:
+                  name: kube-root-ca.crt
+                  items:
+                    - key: ca.crt
+                      path: ca.crt 

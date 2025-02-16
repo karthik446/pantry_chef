@@ -45,35 +45,21 @@ class Recipe(BaseModel):
     cook_time: int = Field(..., description="Cooking time in minutes", ge=0)
     total_time: int = Field(..., description="Total time in minutes", ge=0)
     servings: int = Field(..., description="Number of servings", gt=0)
-    source_url: HttpUrl = Field(..., description="Original recipe URL")
+    source_url: str = Field(..., description="Original recipe URL")
     notes: Optional[str] = Field(None, description="Additional notes")
     ingredients: List[RecipeIngredient]
 
-    @field_validator("ingredients")
-    @classmethod
-    def validate_ingredient_list(cls, v):
-        seen = set()
-        unique_ingredients = []
-        for ing in v:
-            # Better key that includes weight ranges
-            name = ing.name.lower().strip()
-            name = re.sub(r"\([^)]*\)", "", name)  # Remove parentheses content
-            name = re.sub(
-                r"\d+-\d+\s*(?:pounds?|lbs?)", "", name
-            )  # Remove weight ranges
-            name = re.sub(
-                r"^[^a-z]+", "", name
-            )  # Remove leading non-letters (fixes "uck")
-            key = name.strip()
-
-            if key not in seen:
-                seen.add(key)
-                # Parse number ranges like "4-5" into average
-                if ing.quantity is None and ing.name:
-                    match = re.search(r"(\d+)-(\d+)", ing.name)
-                    if match:
-                        start, end = map(int, match.groups())
-                        ing.quantity = (start + end) / 2
-                unique_ingredients.append(ing)
-
-        return validate_ingredients(unique_ingredients)
+    def model_dump(self, **kwargs):
+        data = super().model_dump(**kwargs)
+        # Convert HttpUrl to string
+        data["source_url"] = str(data["source_url"])
+        # Rename ingredients to recipe_ingredients to match Go DTO
+        data["recipe_ingredients"] = [
+            {
+                "ingredient_name": ing["name"],
+                "quantity": ing["quantity"],
+                "unit": ing["unit"],
+            }
+            for ing in data.pop("ingredients")
+        ]
+        return data

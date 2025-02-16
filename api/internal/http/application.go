@@ -21,15 +21,18 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	amqp "github.com/rabbitmq/amqp091-go"
 	"go.uber.org/zap"
+	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/rest"
 )
 
 type application struct {
-	config     *config.Config
-	store      *store.Storage
-	logger     *zap.SugaredLogger
-	tokenGen   token.Generator
-	authMid    *middlewares.AuthMiddleware
-	rabbitConn *amqp.Connection
+	config         *config.Config
+	store          *store.Storage
+	logger         *zap.SugaredLogger
+	tokenGen       token.Generator
+	authMid        *middlewares.AuthMiddleware
+	serviceAuthMid *middlewares.ServiceAuthMiddleware
+	rabbitConn     *amqp.Connection
 }
 
 func NewApplication(cfg *config.Config, store *store.Storage, logger *zap.SugaredLogger) (*application, error) {
@@ -46,13 +49,28 @@ func NewApplication(cfg *config.Config, store *store.Storage, logger *zap.Sugare
 	// Add this log to check if the connection is established
 	logger.Infof("RabbitMQ connection established: %v", rabbitConn != nil)
 
+	// Initialize Kubernetes client
+	k8sConfig, err := rest.InClusterConfig()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get k8s config: %w", err)
+	}
+
+	k8sClient, err := kubernetes.NewForConfig(k8sConfig)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create k8s client: %w", err)
+	}
+
+	logger.Info("Initializing service auth middleware with k8s client")
+	serviceAuthMid := middlewares.NewServiceAuthMiddleware(logger.Named("service_auth"), k8sClient)
+
 	return &application{
-		config:     cfg,
-		store:      store,
-		logger:     logger,
-		tokenGen:   tokenGen,
-		authMid:    middlewares.NewAuthMiddleware(tokenGen),
-		rabbitConn: rabbitConn,
+		config:         cfg,
+		store:          store,
+		logger:         logger,
+		tokenGen:       tokenGen,
+		authMid:        middlewares.NewAuthMiddleware(tokenGen, logger),
+		serviceAuthMid: serviceAuthMid,
+		rabbitConn:     rabbitConn,
 	}, nil
 }
 
@@ -102,9 +120,22 @@ func (app *application) Mount() *chi.Mux {
 		r.Post("/auth/login", authHandler.Login)
 		r.Post("/auth/refresh", authHandler.Refresh)
 
+		// Service to service routes - MOVED OUTSIDE authenticated group
+		r.Group(func(r chi.Router) {
+			app.logger.Info("Setting up internal API routes")
+			r.Use(app.serviceAuthMid.AuthenticateService)
+			app.logger.Info("Service auth middleware attached to internal routes")
+
+			// Internal recipes endpoints for service communication
+			r.Post("/internal/recipes", recipeHandler.Create)
+			app.logger.Info("Internal routes configured",
+				"paths", []string{
+					"POST /api/v1/internal/recipes",
+				})
+		})
+
 		// Protected routes
 		r.Group(func(r chi.Router) {
-			// Apply auth middleware to all routes in this group
 			r.Use(app.authMid.Authenticate)
 
 			// Ingredients routes
@@ -195,7 +226,6 @@ func (app *application) Mount() *chi.Mux {
 				r.Group(func(r chi.Router) {
 					r.Use(app.authMid.RequireRole("admin"))
 					r.Get("/urlsBySearchQuery", recipeHandler.FindUrlsBySearchQuery)
-					r.Post("/", recipeHandler.Create)
 					r.Get("/{id}", recipeHandler.GetByID)
 				})
 			})

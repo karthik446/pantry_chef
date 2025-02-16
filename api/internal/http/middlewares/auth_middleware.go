@@ -6,14 +6,16 @@ import (
 	"strings"
 
 	"github.com/karthik446/pantry_chef/api/internal/platform/token"
+	"go.uber.org/zap"
 )
 
 type AuthMiddleware struct {
 	tokenGen token.Generator
+	logger   *zap.SugaredLogger
 }
 
-func NewAuthMiddleware(tokenGen token.Generator) *AuthMiddleware {
-	return &AuthMiddleware{tokenGen: tokenGen}
+func NewAuthMiddleware(tokenGen token.Generator, logger *zap.SugaredLogger) *AuthMiddleware {
+	return &AuthMiddleware{tokenGen: tokenGen, logger: logger}
 }
 
 func (m *AuthMiddleware) Authenticate(next http.Handler) http.Handler {
@@ -26,6 +28,7 @@ func (m *AuthMiddleware) Authenticate(next http.Handler) http.Handler {
 
 		claims, err := m.tokenGen.ValidateAccessToken(tokenString)
 		if err != nil {
+			m.logger.Error("Invalid token", "error", err)
 			http.Error(w, "Invalid token", http.StatusUnauthorized)
 			return
 		}

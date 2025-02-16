@@ -3,6 +3,7 @@ package recipes
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"strconv"
 
@@ -11,6 +12,7 @@ import (
 	"github.com/karthik446/pantry_chef/api/internal/domain"
 	"github.com/karthik446/pantry_chef/api/internal/http/dtos"
 	"github.com/karthik446/pantry_chef/api/internal/http/handlers"
+	"github.com/karthik446/pantry_chef/api/internal/http/handlers/auth"
 	"github.com/karthik446/pantry_chef/api/internal/store"
 	"go.uber.org/zap"
 )
@@ -75,16 +77,33 @@ func (h *RecipeHandler) List(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *RecipeHandler) Create(w http.ResponseWriter, r *http.Request) {
+	h.Logger.Info("Creating recipe, details: ", r.Body)
 	var dto dtos.CreateRecipeDTO
 
+	// Add debug logging
+	isService, ok := r.Context().Value(auth.ContextKeyIsService).(bool)
+	h.Logger.Info("Context values",
+		"isService", isService,
+		"ok", ok,
+		"contextKeys", fmt.Sprintf("%v", r.Context()))
+
+	if !isService {
+		http.Error(w, "Unauthorized: Service access only", http.StatusForbidden)
+		return
+	}
+
 	err := json.NewDecoder(r.Body).Decode(&dto)
+	h.Logger.Info("Decoded dto Ingredients: ", dto.Ingredients)
 	if err != nil {
+		h.Logger.Error("Error decoding dto: ", err)
 		h.BadRequestResponse(w, r, err)
 		return
 	}
 
 	recipe, err := h.store.Create(r.Context(), &dto)
+	h.Logger.Info("Created recipe: ", recipe)
 	if err != nil {
+		h.Logger.Error("Error creating recipe: ", err)
 		h.InternalServerError(w, r, err)
 		return
 	}

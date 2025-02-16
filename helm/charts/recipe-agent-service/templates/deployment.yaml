@@ -14,6 +14,7 @@ spec:
       labels:
         app: {{ .Chart.Name }}
     spec:
+      serviceAccountName: {{ .Chart.Name }}
       containers:
         - name: {{ .Chart.Name }}
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
@@ -63,4 +64,12 @@ spec:
       #   - ip: "{{ .Values.rabbitmq.ip }}"
       #     hostnames:
       #       - "rabbitmq.infrastructure.svc.cluster.local"
-      #   {{- end }} 
+      #   {{- end }}
+      volumes:
+        - name: service-account-token
+          projected:
+            sources:
+              - serviceAccountToken:
+                  path: token
+                  expirationSeconds: 3600
+                  audience: https://kubernetes.default.svc.cluster.local 

@@ -52,7 +52,7 @@ func (s *RecipeStore) Create(ctx context.Context, dto *dtos.CreateRecipeDTO) (*d
 	}
 
 	// Process ingredients
-	for _, ing := range dto.RecipeIngredients {
+	for _, ing := range dto.Ingredients {
 		ingredientID, err := s.findOrCreateIngredient(ctx, tx, ing.IngredientName)
 		if err != nil {
 			return nil, err

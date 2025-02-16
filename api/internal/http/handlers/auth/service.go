@@ -33,8 +33,8 @@ var (
 
 func (s *AuthService) Login(ctx context.Context, userNumber, password string) (*LoginResponse, error) {
 	// Debug logging
-	userAgent := ctx.Value(contextKeyUserAgent)
-	clientIP := ctx.Value(contextKeyClientIP)
+	userAgent := ctx.Value(ContextKeyUserAgent)
+	clientIP := ctx.Value(ContextKeyClientIP)
 
 	log.Printf("Debug - Context values: userAgent=%v, clientIP=%v", userAgent, clientIP)
 
@@ -61,10 +61,10 @@ func (s *AuthService) Login(ctx context.Context, userNumber, password string) (*
 
 	// Add nil checks for context values
 	var ua, ip string
-	if v := ctx.Value(contextKeyUserAgent); v != nil {
+	if v := ctx.Value(ContextKeyUserAgent); v != nil {
 		ua = v.(string)
 	}
-	if v := ctx.Value(contextKeyClientIP); v != nil {
+	if v := ctx.Value(ContextKeyClientIP); v != nil {
 		ip = v.(string)
 	}
 
@@ -117,10 +117,10 @@ func (s *AuthService) RefreshToken(ctx context.Context, refreshToken string) (*L
 	}
 
 	var ua, ip string
-	if v := ctx.Value(contextKeyUserAgent); v != nil {
+	if v := ctx.Value(ContextKeyUserAgent); v != nil {
 		ua = v.(string)
 	}
-	if v := ctx.Value(contextKeyClientIP); v != nil {
+	if v := ctx.Value(ContextKeyClientIP); v != nil {
 		ip = v.(string)
 	}
 	// Rotate refresh token

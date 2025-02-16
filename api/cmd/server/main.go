@@ -19,7 +19,9 @@ import (
 
 func main() {
 	// Initialize logger
-	logger, err := zap.NewProduction()
+	logConfig := zap.NewDevelopmentConfig()
+	logConfig.Level = zap.NewAtomicLevelAt(zap.DebugLevel) // Set debug level
+	logger, err := logConfig.Build()
 	if err != nil {
 		log.Fatalf("Failed to create logger: %v", err)
 	}

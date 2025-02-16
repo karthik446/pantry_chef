@@ -11,6 +11,10 @@ from recipe_scraper_step import RecipeScraperWorkflowStep
 import aio_pika
 import google.generativeai as genai
 from dotenv import load_dotenv
+from typing import Dict, Any, List, Tuple
+from api_client import PantryChefAPIClient
+from models import Recipe
+from event_models import MetricsEvent
 
 load_dotenv()
 genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
@@ -58,30 +62,51 @@ class WorkflowOrchestrator:
         except Exception as e:
             logging.error(f"Error publishing to metrics queue: {e}")
 
-    async def _send_metrics(self, workflow_instance):
+    async def _publish_metrics(
+        self, event_type: str, metadata: dict, workflow_instance: dict | None = None
+    ):
         """
-        Sends metrics about the workflow execution to the metrics queue.
+        Publishes metrics to the metrics queue.
         """
         try:
-            workflow_name = workflow_instance["workflow_type"]
-            message = {
-                "event_type": f"{workflow_name}.status",
-                "timestamp": datetime.utcnow().isoformat(),
-                "metadata": {
-                    "workflow_id": str(workflow_instance["workflow_id"]),
-                    "workflow_type": workflow_instance["workflow_type"],
-                    "status": workflow_instance["status"],
-                    "current_step": workflow_instance["current_step"],
-                    "start_timestamp": workflow_instance["start_timestamp"],
-                    "last_updated_timestamp": workflow_instance[
-                        "last_updated_timestamp"
-                    ],
-                },
-            }
+            if isinstance(workflow_instance, dict):  # Check if it's actually a dict
+                workflow_name = workflow_instance.get("workflow_type", "unknown")
+                message = {
+                    "event_type": f"{workflow_name}.status",
+                    "timestamp": datetime.utcnow().isoformat(),
+                    "metadata": {
+                        "workflow_id": str(workflow_instance.get("workflow_id")),
+                        "workflow_type": workflow_instance.get("workflow_type"),
+                        "status": workflow_instance.get("status"),
+                        "current_step": workflow_instance.get("current_step"),
+                        "start_timestamp": workflow_instance.get("start_timestamp"),
+                        "last_updated_timestamp": workflow_instance.get(
+                            "last_updated_timestamp"
+                        ),
+                    },
+                }
+            else:
+                # Ensure all values in metadata are JSON serializable
+                sanitized_metadata = {}
+                for key, value in metadata.items():
+                    if (
+                        hasattr(value, "__class__")
+                        and value.__class__.__name__ == "HttpUrl"
+                    ):
+                        sanitized_metadata[key] = str(value)
+                    else:
+                        sanitized_metadata[key] = value
+
+                message = {
+                    "event_type": event_type,
+                    "timestamp": datetime.utcnow().isoformat(),
+                    "metadata": sanitized_metadata,
+                }
+
             message_json = json.dumps(message)
             await self._publish_to_metrics_queue(message_json)
         except Exception as e:
-            logging.error(f"Error sending metrics: {e}")
+            logging.error(f"Error publishing metrics: {e}", exc_info=True)
 
     async def _connect_to_rabbitmq(self):
         """Connects to RabbitMQ using aio_pika."""
@@ -168,6 +193,7 @@ class WorkflowOrchestrator:
         """
         Executes the steps for the 'recipe_workflow_full' workflow.
         """
+        start_time = time.time()
         workflow_instance = self.workflow_instances.get(workflow_id)
         workflow_type = workflow_instance["workflow_type"]
 
@@ -181,11 +207,26 @@ class WorkflowOrchestrator:
             search_query = workflow_instance["payload"].get("search_query")
             excluded_domains = workflow_instance["payload"].get("excluded_domains", [])
             number_of_urls = workflow_instance["payload"].get("number_of_urls", 10)
-            recipe_urls = search_recipes(search_query, excluded_domains, number_of_urls)
+            recipe_urls, search_metrics = search_recipes(
+                search_query=search_query,
+                excluded_domains=excluded_domains,
+                num_urls=number_of_urls,
+            )
             workflow_instance["context_data"]["recipe_search_results"] = recipe_urls
             workflow_instance["current_step"] = "recipe_search"
             workflow_instance["status"] = "recipe_search_completed"
             workflow_instance["last_updated_timestamp"] = datetime.now().isoformat()
+
+            # Publish search metrics
+            await self._publish_metrics(
+                "recipe.search_completed",
+                {
+                    "recipe_urls": recipe_urls,
+                    "duration": search_metrics.duration,
+                    "attempts": search_metrics.metadata.get("attempts", 1),
+                },
+                workflow_instance,
+            )
             logging.info(
                 f"Recipe search completed: workflow_id={workflow_id}, found {len(recipe_urls)} recipes"
             )
@@ -194,6 +235,9 @@ class WorkflowOrchestrator:
             workflow_instance["current_step"] = "recipe_scraping"
             workflow_instance["status"] = "recipe_scraping_in_progress"
             workflow_instance["last_updated_timestamp"] = datetime.now().isoformat()
+            await self._publish_metrics(
+                "recipe.scraping_started", {}, workflow_instance
+            )
             logging.info(
                 f"Starting parallel recipe scraping: workflow_id={workflow_id}"
             )
@@ -202,168 +246,109 @@ class WorkflowOrchestrator:
             workflow_instance["context_data"]["scraped_recipes"] = scraped_recipes
             workflow_instance["status"] = "recipe_scraping_completed"
             workflow_instance["last_updated_timestamp"] = datetime.now().isoformat()
-
-            # Structured logging for scraped recipes
-            logging.info(
-                f"Recipe scraping completed: workflow_id={workflow_id}, total recipes attempted={len(scraped_recipes)}"
+            await self._publish_metrics(
+                "recipe.scraping_completed",
+                {"scraped_recipes": len(scraped_recipes)},
+                workflow_instance,
             )
 
-            successful_recipes = 0
-            for i, (recipe, metrics) in enumerate(scraped_recipes, 1):
-                if recipe:
-                    successful_recipes += 1
-                    logging.info(
-                        f"Recipe {i} (Success) - "
-                        f"Title: {recipe.title}, "
-                        f"URL: {recipe.source_url}, "
-                        f"Ingredients: {len(recipe.ingredients)}"
-                    )
-                else:
-                    logging.error(
-                        f"Recipe {i} (Failed) - "
-                        f"URL: {metrics[0].metadata.get('url', 'Unknown URL')}, "
-                        f"Error: {metrics[0].metadata.get('error', 'Unknown error')}"
-                    )
-
-            logging.info(
-                f"Successfully scraped {successful_recipes} out of {len(scraped_recipes)} recipes"
-            )
-
-            # Step 3: Placeholder for Saving Recipes to API (Not yet implemented)
-            # ... (API saving logic would go here in the future) ...
+            # Step 3: Save Recipes to API
             workflow_instance["current_step"] = "save_recipes_api"
             workflow_instance["status"] = "save_recipes_api_pending"
             workflow_instance["last_updated_timestamp"] = datetime.now().isoformat()
-            logging.info(f"Save recipes to API step pending: workflow_id={workflow_id}")
+            await self.save_recipes(
+                scraped_recipes=scraped_recipes,
+                workflow_id=workflow_id,
+                search_query=search_query,
+            )
 
             # Workflow Completion
             workflow_instance["status"] = "completed"
             workflow_instance["current_step"] = "completed"
             workflow_instance["last_updated_timestamp"] = datetime.now().isoformat()
+            end_time = time.time()
+            execution_time = end_time - start_time
+            await self._publish_metrics(
+                "workflow.completed",
+                {"workflow_id": str(workflow_id), "execution_time": execution_time},
+                workflow_instance,
+            )
+
             logging.info(
                 f"Workflow '{workflow_type}' completed: workflow_id={workflow_id}"
             )
-
-            await self._send_metrics(workflow_instance)
 
         except Exception as e:
             workflow_instance["status"] = "failed"
             workflow_instance["current_step"] = "failed"
             workflow_instance["last_updated_timestamp"] = datetime.now().isoformat()
             workflow_instance["error_details"] = str(e)
+            await self._publish_metrics(
+                "workflow.failed", {"error": str(e)}, workflow_instance
+            )
             logging.error(f"Error executing workflow {workflow_id}: {e}", exc_info=True)
-            await self._send_metrics(workflow_instance)
 
-    async def _execute_recipe_search_step(self, workflow_instance: dict) -> None:
+    async def save_recipes(
+        self,
+        scraped_recipes: List[Tuple[Recipe | None, List[MetricsEvent]]],
+        workflow_id: uuid.UUID,
+        search_query: str,
+    ) -> None:
         """
-        Executes the recipe search step for the given workflow instance.
+        Save successfully scraped recipes to database through API
 
         Args:
-            workflow_instance: The workflow instance dictionary.
+            scraped_recipes: List of tuples containing (Recipe | None, List[MetricsEvent])
+                            where Recipe is None if scraping failed
         """
-        workflow_id = workflow_instance["workflow_id"]
         try:
-            logging.info(f"Executing recipe search step: workflow_id={workflow_id}")
+            api_client = PantryChefAPIClient()
 
-            # Start the timer
-            start_time = time.time()
+            for recipe, metrics in scraped_recipes:
+                if recipe is None:
+                    # Skip failed recipes but log the failure
+                    logging.warning(
+                        f"Skipping failed recipe: {metrics[0].metadata.get('url', 'Unknown URL')}"
+                    )
+                    continue
 
-            # Access workflow payload attributes using the Pydantic model
-            search_query = workflow_instance["workflow_payload"]["search_query"]
-            excluded_domains = workflow_instance["workflow_payload"].get(
-                "excluded_domains", []
-            )  # Get excluded_domains, default to [] if not present
-            num_urls = workflow_instance["workflow_payload"].get(
-                "number_of_urls", 10
-            )  # Get number_of_urls, default to 10 if not present
+                try:
+                    # Use model_dump() instead of model_dump_json() to get dict
+                    recipe_dict = recipe.model_dump()
+                    recipe_dict["created_from_query"] = search_query
+                    saved_recipe = api_client.create_recipe(recipe_dict)
 
-            logging.info(
-                f"Recipe search: workflow_id={workflow_id}, query={search_query}, excluded_domains={excluded_domains}, num_urls={num_urls}"
-            )
+                    await self._publish_metrics(
+                        "recipe.saved",
+                        {
+                            "recipe_id": saved_recipe.get("id"),
+                            "workflow_id": str(workflow_id),
+                            "url": recipe.source_url,
+                        },
+                        None,
+                    )
 
-            # Call the search_recipes function from the search_agent module
-            recipe_search_results = search_recipes(
-                search_query, excluded_domains, num_urls
-            )
-
-            # End the timer
-            end_time = time.time()
-            duration = end_time - start_time
-
-            # Update workflow instance attributes
-            workflow_instance["context_data"][
-                "recipe_search_results"
-            ] = recipe_search_results
-            workflow_instance["current_step"] = (
-                "recipe_search"  # Mark step as completed
-            )
-            workflow_instance["status"] = "running"  # Update workflow status
-            workflow_instance["last_updated_timestamp"] = (
-                datetime.utcnow().isoformat()
-            )  # Update timestamp
-
-            logging.info(
-                f"Recipe search completed: workflow_id={workflow_id}, found {len(recipe_search_results)} recipes"
-            )
-            logging.debug(f"Workflow instance after recipe search: {workflow_instance}")
-
-            # Send metrics to the metrics queue
-            await self._send_recipe_search_metrics(workflow_id, search_query, duration)
+                except Exception as e:
+                    logging.error(
+                        f"Failed to save recipe from {recipe.source_url}: {e}"
+                    )
+                    await self._publish_metrics(
+                        "recipe.save_failed",
+                        {
+                            "error": str(e),
+                            "workflow_id": str(workflow_id),
+                            "url": recipe.source_url,
+                        },
+                        None,
+                    )
+                    # Continue with next recipe instead of failing entire batch
+                    continue
 
         except Exception as e:
-            logging.error(
-                f"Error executing recipe search step: workflow_id={workflow_id}: {e}"
+            logging.error(f"Fatal error in save_recipe: {e}")
+            await self._publish_metrics(
+                "recipe.save_batch_failed",
+                {"error": str(e), "workflow_id": str(workflow_id)},
+                None,
             )
-            workflow_instance["status"] = "failed"  # Update workflow status
-            workflow_instance["last_updated_timestamp"] = (
-                datetime.utcnow().isoformat()
-            )  # Update timestamp
-            logging.info(
-                f"Workflow {workflow_id} failed during _execute_recipe_search_step"
-            )
-
-    async def _send_recipe_search_metrics(
-        self, workflow_id: str, search_query: str, duration: float
-    ):
-        """Sends recipe search metrics to the metrics queue."""
-        try:
-            if not self.channel or self.channel.is_closed:
-                await self._connect_to_rabbitmq()
-
-            message = {
-                "event_type": "recipe_search.duration",
-                "duration": duration,
-                "metadata": {"search_query": search_query, "workflow_id": workflow_id},
-                "timestamp": datetime.utcnow().isoformat(),
-            }
-            message_json = json.dumps(message)
-            channel = await self.connection.channel()
-            await channel.basic_publish(
-                exchange="",
-                routing_key=self.metrics_queue_name,
-                body=message_json,
-            )
-            logging.info(
-                f"Sent recipe search metrics to queue {self.metrics_queue_name}: workflow_id={workflow_id}, duration={duration}"
-            )
-        except Exception as e:
-            logging.error(f"Error sending metrics: {e}")
-
-    async def _publish_metrics(self, workflow_id: uuid.UUID, status: str):
-        """
-        Publishes workflow metrics to the metrics queue.
-        """
-        metrics_event = {
-            "event_type": "workflow.status",  # Required field
-            "timestamp": datetime.utcnow().isoformat(),  # Required field
-            "metadata": {  # Optional metadata field for additional info
-                "workflow_id": str(workflow_id),
-                "workflow_type": "recipe_workflow_full",
-                "status": status,
-                "current_step": status,
-                "start_timestamp": self.start_timestamp.isoformat(),
-                "last_updated_timestamp": datetime.utcnow().isoformat(),
-            },
-        }
-
-        await self._publish_to_metrics_queue(json.dumps(metrics_event))
+            raise

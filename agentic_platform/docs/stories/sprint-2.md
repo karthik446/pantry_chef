@@ -60,57 +60,57 @@ The focus of this tech debt sprint is to implement an asynchronous consumer usin
 
 *   [ ] **Task 1.1: Define Scraping Event Types**
     *   [x] create class RecipeMetricsEventType(Enum):
-    *   [ ] Define metadata structure for each event type
-    *   [ ] Add logging for each event type
+    *   [x] Define metadata structure for each event type
+    *   [x] Add logging for each event type
     *   Estimated Effort: 0.5 days
 
-*   [ ] **Task 1.2: Enhance Library Scraping Method**
-    *   [ ] Wrap recipe-scrapers library with metrics collection
-    *   [ ] Implement Recipe/MetricsEvents tuple return
-    *   [ ] Add duration tracking
-    *   [ ] Add detailed failure metadata
-    *   Estimated Effort: 1 day
 
-*   [ ] **Task 1.3: Enhance Custom Scraping Method**
-    *   [ ] Structure custom scraping with metrics collection
-    *   [ ] Implement Recipe/MetricsEvents tuple return
-    *   [ ] Track parsing attempts in metadata
-    *   [ ] Add failure categorization
-    *   Estimated Effort: 1 day
 
 *   [ ] **Task 1.4: Implement AI Scraping Method**
-    *   [ ] Structure AI scraping with metrics collection
-    *   [ ] Track token usage in metrics
-    *   [ ] Add timeout handling
-    *   [ ] Implement proper validation
+    *   [x] Structure AI scraping with metrics collection
+    *   [x] Track token usage in metrics
+    *   [x] Add timeout handling
+    *   [x] Implement proper validation
     *   Estimated Effort: 1 day
 
 *   [ ] **Task 1.5: Implement Sequential Scraping Logic**
-    *   [ ] Implement priority-based method execution
-    *   [ ] Collect and combine metrics from all attempts
-    *   [ ] Add comprehensive logging
-    *   [ ] Test parallel processing scenarios
+    *   [x] Implement priority-based method execution
+    *   [x] Collect and combine metrics from all attempts
+    *   [x] Add comprehensive logging
+    *   [x] Test parallel processing scenarios
     *   Estimated Effort: 1 day
 
-**2. Authentication and API Interaction with Redis Caching:**
+**2. Service-to-Service Authentication:**
 
-*   [ ] **Task 2.1: Implement Redis Cache Client**
-*   [ ] Add redis-py dependency to RecipeAgentService requirements.txt.
-*   [ ] Implement a Redis client in workflow_consumer.py to store and retrieve auth tokens.
-*   [ ] Configure Redis connection details using environment variables.
-*   Estimated Effort: 0.5 days
+*   [x] **Task 2.1: Create ServiceAccount for Recipe Agent Service**
+    *   [x] Create new file `helm/charts/recipe-agent-service/templates/serviceaccount.yaml`
+    *   [x] Define ServiceAccount with appropriate name and labels
+    *   [x] Create RBAC role with permissions for API access
+    *   [x] Create RoleBinding to associate ServiceAccount with role
+    *   [x] Update deployment template to use the ServiceAccount
+    *   Estimated Effort: 0.5 days
 
-*   [ ] **Task 2.2: Abstract Authentication Logic**
-*   [ ] Create an abstract authentication class/interface in a new file agentic_platform/services/recipes/src/auth_client.py.
-*   [ ] Implement a concrete authentication class (e.g., APIKeyAuthClient) that uses an API key for authentication and stores/retrieves tokens from Redis.
-*   [ ] Design the authentication logic to be easily extensible for other auth methods in the future.
-*   Estimated Effort: 1 day
+*   [x] **Task 2.2: Update API Service for Internal Authentication**
+    *   [x] Add new middleware in `api/internal/http/middlewares` for service authentication
+    *   [x] Configure middleware to verify ServiceAccount tokens
+    *   [x] Add specific routes/endpoints for service-to-service communication
+    *   [x] Update API deployment to allow ServiceAccount authentication
+    *   Estimated Effort: 1 day
 
-*   [ ] **Task 2.3: Implement API Submission with Authentication in workflow_consumer.py**
-*   [ ] Modify submit_recipe_to_api to use the abstracted authentication client to obtain and include the auth token in API requests.
-*   [ ] Implement token refresh logic if the API returns an authentication error (using the Redis cached token).
-*   [ ] Handle API response (success/failure) and log appropriately, including authentication-related errors.
-*   Estimated Effort: 1 day
+*   [x] **Task 2.3: Implement Network Policies**
+    *   [x] Update `network-policy.yaml` to allow egress to API service
+    *   [x] Add ingress rules for API service
+    *   [x] Configure specific ports and paths
+    *   [x] Test network connectivity between services
+    *   Estimated Effort: 0.5 days
+
+*   [x] **Task 2.4: Implement Service API Client**
+    *   [x] Create new file `agentic_platform/services/recipes/src/api_client.py`
+    *   [x] Implement API client using Kubernetes service DNS
+    *   [x] Add retry logic with exponential backoff
+    *   [x] Add proper error handling and logging
+    *   [x] Update workflow orchestrator to use new API client
+    *   Estimated Effort: 1 day
 
 **3. Consumer Refactoring and Queue Handling:**
 

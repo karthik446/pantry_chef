@@ -28,8 +28,8 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 
 	// Create new context with required values
 	ctx := r.Context()
-	ctx = context.WithValue(ctx, contextKeyUserAgent, r.UserAgent())
-	ctx = context.WithValue(ctx, contextKeyClientIP, r.RemoteAddr)
+	ctx = context.WithValue(ctx, ContextKeyUserAgent, r.UserAgent())
+	ctx = context.WithValue(ctx, ContextKeyClientIP, r.RemoteAddr)
 
 	h.Logger.Infow("login attempt",
 		"user_number", req.UserNumber,
@@ -70,8 +70,8 @@ func (h *AuthHandler) Refresh(w http.ResponseWriter, r *http.Request) {
 	}
 
 	ctx := r.Context()
-	ctx = context.WithValue(ctx, contextKeyUserAgent, r.UserAgent())
-	ctx = context.WithValue(ctx, contextKeyClientIP, r.RemoteAddr)
+	ctx = context.WithValue(ctx, ContextKeyUserAgent, r.UserAgent())
+	ctx = context.WithValue(ctx, ContextKeyClientIP, r.RemoteAddr)
 
 	resp, err := h.authService.RefreshToken(ctx, req.RefreshToken)
 	if err != nil {

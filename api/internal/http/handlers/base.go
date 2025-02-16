@@ -25,6 +25,12 @@ func (h *BaseHandler) JsonResponse(w http.ResponseWriter, status int, data inter
 	json.NewEncoder(w).Encode(data)
 }
 
+func (h *BaseHandler) ForbiddenRequestResponse(w http.ResponseWriter, r *http.Request) {
+	h.JsonResponse(w, http.StatusForbidden, envelope{"data": envelope{
+		"error": "forbidden",
+	}})
+}
+
 func (h *BaseHandler) BadRequestResponse(w http.ResponseWriter, r *http.Request, err error) {
 	h.JsonResponse(w, http.StatusBadRequest, envelope{"data": envelope{
 		"error": "bad request",

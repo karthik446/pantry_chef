@@ -40,4 +40,11 @@ resources:
     memory: 256Mi
 
 rabbitmq:
-  url: "amqp://user:rabbitmq@rabbitmq.infrastructure.svc.cluster.local:5672/" 
+  url: "amqp://user:rabbitmq@rabbitmq.infrastructure.svc.cluster.local:5672/"
+
+auth:
+  kubernetes:
+    enabled: true
+    allowedServiceAccounts:
+      - name: recipe-agent-service
+        namespace: default 
